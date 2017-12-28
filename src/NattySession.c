@@ -1334,7 +1334,7 @@ int ntySendLocationBroadCastResult(C_DEVID fromId, C_DEVID gId, U8 *json, int le
 		return NTY_RESULT_ERROR;
 	}
 #if 1
-	ntylog("ntyAddClientHeap --> friend addr:%llx\n", (C_DEVID)pClient->friends);
+	ntylog("ntySendLocationBroadCastResult --> friend addr:%llx\n", (C_DEVID)pClient->friends);
 	ntylog(" ntySendLocationBroadCastResult --> fromId:%lld, devId:%lld \n", fromId, pClient->devId);
 	ntyVectorIterator(pClient->friends, ntySendLocationBroadCastIter, msg);
 #else
@@ -1698,7 +1698,7 @@ int ntySendBigPacket(U8 *buffer, int length, C_DEVID fromId, C_DEVID gId, C_DEVI
 		ret = ntySendBuffer(client, pkt, pktLength+NTY_VOICEREQ_EXTEND_LENGTH);	
 		ntylog("ntySendBigPacket index:%d,pktLength:%d,Count:%d,send:%d,fromId:%lld,gId:%lld,toId:%lld\n", i,pktLength+NTY_VOICEREQ_EXTEND_LENGTH, Count, ret, fromId,gId,toId);
 		//ntylog(" pktLength:%d, Count:%d, ret:%d, selfIdx:%d\n",pktLength+NTY_VOICEREQ_EXTEND_LENGTH, Count, ret, NTY_PROTO_VOICEREQ_SELFID_IDX);
-		usleep(100000); //add by Rain 2017-10-29
+		usleep(10000); //add by Rain 2017-10-29
 #if 0
 		usleep(20 * 1000); //Window Send
 #endif

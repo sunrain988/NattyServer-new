@@ -268,12 +268,17 @@ Client* ntyAddClientHeap(const void * obj, int *result) {
 
 	//pClient->
 	BPTreeHeap *heap = ntyBHeapInstance();
-	if (heap == NULL) return NULL;
-	NRecord *record = ntyBHeapSelect(heap, client->devId);
-	if (record == NULL) {
-		Client *pClient = (Client*)malloc(sizeof(Client));
-		if (pClient == NULL) {
+	if ( heap == NULL ){
+		ntylog( "ntyAddClientHeap heap==NULL\n" );
+		return NULL;
+	}
+	ntylog("ntyAddClientHeap heap->count:%d\n", heap->count);
+	NRecord *record = ntyBHeapSelect( heap, client->devId );
+	if ( record == NULL ){
+		Client *pClient = (Client*)malloc( sizeof(Client) );
+		if ( pClient == NULL ) {
 			*result = NTY_RESULT_ERROR;
+			ntylog( "ntyAddClientHeap pClient malloc failed\n" );
 			return NULL;
 		}
 		memset(pClient, 0, sizeof(Client));		
@@ -296,16 +301,21 @@ Client* ntyAddClientHeap(const void * obj, int *result) {
 			*result = ret;
 			return NULL;
 		}
-#else
-		if (ret != NTY_RESULT_SUCCESS) {
-			ntylog("ret : %d\n", ret);
-			free(pClient);
-
+	#else
+		if ( ret != NTY_RESULT_SUCCESS ) {
+			ntylog("ntyAddClientHeap ret:%d\n", ret);
+			ntyFree(pClient);
 			*result = ret;
 			return NULL;
 		}
-		ntyPrintTree(heap->root);
-#endif
+		//select for test
+		NRecord *recordTmp = ntyBHeapSelect( heap, pClient->devId );
+		if ( recordTmp != NULL ){
+			Client *clientTmp = (Client *)recordTmp->value;
+			ntylog( "ntyAddClientHeap select:%lld\n", clientTmp->devId );
+		}
+		//ntyPrintTree(heap->root);  //easy error,just for debug
+	#endif
 		pthread_mutex_t blank_mutex = PTHREAD_MUTEX_INITIALIZER;
 		memcpy(&pClient->bMutex, &blank_mutex, sizeof(pClient->bMutex));
 
@@ -316,9 +326,9 @@ Client* ntyAddClientHeap(const void * obj, int *result) {
 		}
 		
 		pClient->rLength = 0;
-		pClient->recvBuffer = malloc(PACKET_BUFFER_SIZE);
-		if (pClient->recvBuffer == NULL) {
-			free(pClient);
+		pClient->recvBuffer = malloc( PACKET_BUFFER_SIZE );
+		if ( pClient->recvBuffer == NULL ) {
+			ntyFree(pClient);
 			return NULL;
 		}
 		memset(pClient->recvBuffer, 0, PACKET_BUFFER_SIZE);
@@ -460,16 +470,15 @@ int ntyClientCleanup(ClientSocket *client) { //
 	if (load == NULL) return NTY_RESULT_NOEXIST;
 
 	C_DEVID Id = load->id;
-	ntylog(" ntyClientCleanup --> %lld\n", Id);
+	ntylog("ntyClientCleanup id:%lld\n", Id);
 	if (load->id == NATTY_NULL_DEVID) return NTY_RESULT_NOEXIST;
 	
 	//delete hash key 
 	int ret = ntyHashTableDelete(hash, sockfd);
 	if (ret == NTY_RESULT_SUCCESS) {
+		ntylog("ntyClientCleanup ntyHashTableDelete success ret:%d\n", ret);
 		//release client socket map
-		ret = ntyDelRelationMap(Id);
-		ntylog(" ntyMapDelete --> ret : %d\n", ret);
-		
+		ret = ntyDelRelationMap(Id);			
 		//release HashMap
 #if 0 //no delete from BHeap
 		ret = ntyDelClientHeap(Id);
@@ -477,7 +486,7 @@ int ntyClientCleanup(ClientSocket *client) { //
 #endif
 		ntyOfflineClientHeap(Id);
 	} else {
-		ntylog(" ntyHashDelete ret : %d\n", ret);
+		ntylog("ntyClientCleanup ntyHashTableDelete failed ret:%d\n", ret);
 	}
 
 	return ret;
@@ -490,14 +499,14 @@ int ntyOfflineClientHeap(C_DEVID clientId) {
 
 	if (record == NULL) {
 		ntylog("Error OfflineClientHeap is not Exist %lld\n", clientId);
-		ntyPrintTree(heap->root);
+		//ntyPrintTree(heap->root);  //easy error,just for debug
 		return NTY_RESULT_NOEXIST;
 	}
 
 	Client* pClient = (Client*)record->value;
 	if (pClient == NULL) {
 		ntylog("Error OfflineClientHeap record->value == NULL %lld\n", clientId);
-		ntyPrintTree(heap->root);
+		//ntyPrintTree(heap->root);  //easy error,just for debug
 		return NTY_RESULT_NOEXIST;
 	}
 
@@ -524,15 +533,15 @@ int ntyOnlineClientHeap(C_DEVID clientId) {
 	NRecord *record = ntyBHeapSelect(heap, clientId);
 
 	if (record == NULL) {
-		ntylog(" Error OfflineClientHeap is not Exist : %lld\n", clientId);
-		ntyPrintTree(heap->root);
+		ntylog(" Error ntyOnlineClientHeap is not Exist : %lld\n", clientId);
+		//ntyPrintTree(heap->root);  //easy error,just for debug
 		return NTY_RESULT_NOEXIST;
 	}
 
 	Client* pClient = (Client*)record->value;
 	if (pClient == NULL) {
-		ntylog(" Error OfflineClientHeap record->value == NULL %lld\n", clientId);
-		ntyPrintTree(heap->root);
+		ntylog(" Error ntyOnlineClientHeap record->value == NULL %lld\n", clientId);
+		//ntyPrintTree(heap->root);  //easy error,just for debug
 		return NTY_RESULT_NOEXIST;
 	}
 	
@@ -553,15 +562,15 @@ int ntyLogoutOfflineClientHeap(C_DEVID clientId) {
 	NRecord *record = ntyBHeapSelect(heap, clientId);
 
 	if (record == NULL) {
-		ntylog("Error OfflineClientHeap is not Exist %lld\n", clientId);
-		ntyPrintTree(heap->root);
+		ntylog("Error ntyLogoutOfflineClientHeap is not Exist %lld\n", clientId);
+		//ntyPrintTree(heap->root); //easy error,just for debug
 		return NTY_RESULT_NOEXIST;
 	}
 
 	Client* pClient = (Client*)record->value;
 	if (pClient == NULL) {
-		ntylog("Error OfflineClientHeap record->value == NULL %lld\n", clientId);
-		ntyPrintTree(heap->root);
+		ntylog("Error ntyLogoutOfflineClientHeap record->value == NULL %lld\n", clientId);
+		//ntyPrintTree(heap->root); //easy error,just for debug
 		return NTY_RESULT_NOEXIST;
 	}
 
@@ -589,11 +598,9 @@ int ntyLogoutOfflineClientHeap(C_DEVID clientId) {
  */
 void ntyLoginPacketHandleRequest(const void *_self, unsigned char *buffer, int length, const void* obj) {
 	
-	if (buffer[NTY_PROTO_MSGTYPE_IDX] == NTY_PROTO_LOGIN_REQ) {
-		
+	if (buffer[NTY_PROTO_MSGTYPE_IDX] == NTY_PROTO_LOGIN_REQ) {		
 		ntylog("====================begin ntyLoginPacketHandleRequest action ==========================\n");
-
-#if 0
+	#if 0
 		int i = 0;
 		void *pRBTree = ntyRBTreeInstance();
 		
@@ -606,47 +613,39 @@ void ntyLoginPacketHandleRequest(const void *_self, unsigned char *buffer, int l
 			if (buffer[NEY_PROTO_VERSION_IDX] == NTY_PROTO_DEVICE_VERSION)
 				ntySendDeviceTimeCheckAck(pClient->devId, client->ackNum+1);
 		}
-#else
-
+	#else
 		const MessagePacket *msg = (const MessagePacket*)obj;
-		if (msg == NULL) return ;
+		if ( msg == NULL ) return ;
 		const Client *client = msg->client;
-
 		MessagePacket *pMsg = (MessagePacket *)malloc(sizeof(MessagePacket));
-		if (pMsg == NULL) return ;
-		
-		memset(pMsg, 0, sizeof(MessagePacket));		
-		memcpy(pMsg, msg, sizeof(MessagePacket));
-		
-		ntyAddRelationMap(pMsg);
-		free(pMsg);
+		if ( pMsg == NULL ) return ;
+		memset( pMsg, 0, sizeof(MessagePacket) );		
+		memcpy( pMsg, msg, sizeof(MessagePacket) );
+		ntyAddRelationMap( pMsg );
+		ntyFree( pMsg );
 
 		int ret = NTY_RESULT_SUCCESS;
-		Client *pClient = ntyAddClientHeap(client, &ret);
-		if (pClient != NULL) {
+		Client *pClient = ntyAddClientHeap( client, &ret );
+		if ( pClient != NULL ) {
 			//ntySendFriendsTreeIpAddr(pClient, 1);
-
 			pClient->deviceType = client->deviceType; //Client from Android switch IOS 
-			if (pClient->deviceType == NTY_PROTO_CLIENT_IOS && buffer[NTY_PROTO_VERSION_IDX] == NTY_PROTO_VERSION_B) {
+			if ( pClient->deviceType == NTY_PROTO_CLIENT_IOS && buffer[NTY_PROTO_VERSION_IDX] == NTY_PROTO_VERSION_B ) {
 				pClient->deviceType = NTY_PROTO_CLIENT_IOS_APP_B;
-			} else if (pClient->deviceType == NTY_PROTO_CLIENT_IOS_PUBLISH && buffer[NTY_PROTO_VERSION_IDX] == NTY_PROTO_VERSION_B) {
+			} else if ( pClient->deviceType == NTY_PROTO_CLIENT_IOS_PUBLISH && buffer[NTY_PROTO_VERSION_IDX] == NTY_PROTO_VERSION_B ) {
 				pClient->deviceType = NTY_PROTO_CLIENT_IOS_APP_B_PUBLISH;
-			}
-
-			
-			if (pClient->deviceType == NTY_PROTO_CLIENT_WATCH) {
-#if 0
+			}else{}	
+			if ( pClient->deviceType == NTY_PROTO_CLIENT_WATCH ) {
+			#if 0
 				ntySendDeviceTimeCheckAck(pClient, client->ackNum+1);
-#elif 0
+			#elif 0
 				ntySendDeviceTimeCheckAck(pClient, 1);
-#else	
-#if 0
-				//将此处的添加到队列里面
+			#else	
+				#if 0
 				ntyExecuteChangeDeviceOnlineStatusHandle(pClient->devId);
-#endif
+				#endif
 				//ntySendLoginAckResult(pClient->devId, "", 0, 200);
 				ntySendDeviceTimeCheckAck(pClient->devId, 1);
-#if 0 //move to OfflineMsge
+				#if 0 //move to OfflineMsge
 				VALUE_TYPE *tag = malloc(sizeof(VALUE_TYPE));
 				if (tag == NULL) return ;
 
@@ -656,32 +655,26 @@ void ntyLoginPacketHandleRequest(const void *_self, unsigned char *buffer, int l
 				tag->cb = ntyDeviceOfflineMsgReqHandle;
 
 				ntyDaveMqPushMessage(tag);
-#endif 
-#endif
+				#endif 
+			#endif
 			} else {
 
 				if (pClient->deviceType == NTY_PROTO_CLIENT_IOS || pClient->deviceType == NTY_PROTO_CLIENT_IOS_PUBLISH
 					|| pClient->deviceType == NTY_PROTO_CLIENT_IOS_APP_B || pClient->deviceType == NTY_PROTO_CLIENT_IOS_APP_B_PUBLISH) {
-					U16 tokenLen = *(U16*)(buffer+NTY_PROTO_LOGIN_REQ_JSON_LENGTH_IDX);
-						
+
+					U16 tokenLen = *(U16*)(buffer+NTY_PROTO_LOGIN_REQ_JSON_LENGTH_IDX);	
 					U8 *token = buffer+NTY_PROTO_LOGIN_REQ_JSON_CONTENT_IDX;
-
-					if (tokenLen == TOKEN_SIZE*2) {
-					
-						if (pClient->token == NULL) {
+					if ( tokenLen == TOKEN_SIZE*2 ) {				
+						if ( pClient->token == NULL ) {
 							pClient->token = malloc(tokenLen + 1);
-						}
-
-						if (pClient->token != NULL) {
-							memset(pClient->token, 0, tokenLen + 1);
-
-							memcpy(pClient->token, token, tokenLen);
-							ntylog(" LOGIN --> %s\n", pClient->token);
+						}else{
+							memset( pClient->token, 0, tokenLen + 1) ;
+							memcpy( pClient->token, token, tokenLen );
+							ntylog("ntyLoginPacketHandleRequest LOGIN:%s\n", pClient->token);
 						}
 					}
 				}
-#if 0 //Update By WangBoJing 
-
+			#if 0 //Update By WangBoJing 
 				VALUE_TYPE *tag = malloc(sizeof(VALUE_TYPE));
 				if (tag == NULL) return ;
 
@@ -689,22 +682,20 @@ void ntyLoginPacketHandleRequest(const void *_self, unsigned char *buffer, int l
 				tag->fromId = pClient->devId;
 				tag->Type = MSG_TYPE_OFFLINE_MSG_REQ_HANDLE;
 				tag->cb = ntyOfflineMsgReqHandle;
-
 				ntyDaveMqPushMessage(tag);
-#else 
+			#else 
 				ntySendLoginAckResult(pClient->devId, "", 0, 200);
-#endif
+			#endif
 			}
 		} else {	
-			ntylog(" BHeap in the Processs\n");
-			if (ret == NTY_RESULT_BUSY) {
+			ntylog("ntyLoginPacketHandleRequest BHeap in the Processs\n");
+			if ( ret == NTY_RESULT_BUSY ) {
 				ntyJsonCommonResult(client->devId, NATTY_RESULT_CODE_BUSY);
 			}
 		}
-#endif
+	#endif
 		//ntylog("Login deal with: %d\n", buffer[NTY_PROTO_MSGTYPE_IDX]);		
-		//send login ack
-		
+		//send login ack	
 		ntylog("====================end ntyLoginPacketHandleRequest action ==========================\n");
 	} else if (ntyPacketGetSuccessor(_self) != NULL) {
 		const ProtocolFilter * const *succ = ntyPacketGetSuccessor(_self);
@@ -2577,7 +2568,7 @@ static void ntyClientBufferRelease(Client *client) {
 void ntyProtocolFilterProcess(void *_filter, unsigned char *buffer, U32 length, const void *obj) {
 	//usleep(10); //many threads access
 	ntylog("******ntyProtocolFilterProcess receive buffer buffer[0]:%x,buffer[1]:%x,buffer[2]:%x,buffer[3]:%x\n",buffer[0],buffer[1],buffer[2],buffer[3]);
-	ntydbg("******ntyProtocolFilterProcess receive buffer buffer[0]:%x,buffer[1]:%x,buffer[2]:%x,buffer[3]:%x\n",buffer[0],buffer[1],buffer[2],buffer[3]);
+	//ntydbg("******ntyProtocolFilterProcess receive buffer buffer[0]:%x,buffer[1]:%x,buffer[2]:%x,buffer[3]:%x\n",buffer[0],buffer[1],buffer[2],buffer[3]);
 	//firstly parse the third parten
 	if ( buffer[0]==0x45 && buffer[1]==0x44 && buffer[2]==0x09  ){
 		ntylog("**********ntyProtocolFilterProcess the third party protocol begin**************\n");
@@ -2605,14 +2596,14 @@ void ntyProtocolFilterProcess(void *_filter, unsigned char *buffer, U32 length, 
 		ntylog("ntyProtocolFilterProcess client==NULL\n");
 		return ;
 	}
-#if 0	
+	#if 0	
 	struct sockaddr_in addr;
 	memcpy(&addr, &client->addr, sizeof(struct sockaddr_in));
 
 	C_DEVID id = ntySearchDevIdFromHashTable(&addr);
 	ntylog("ntyProtocolFilterProcess :%lld\n", id);
 	if (id == 0) return ;
-#endif	
+	#endif	
 	void *pBHeap = ntyBHeapInstance();
 	NRecord *Record = (NRecord*)ntyBHeapSelect(pBHeap, client->devId);
 	//if (Record == NULL) return ;
@@ -2624,58 +2615,48 @@ void ntyProtocolFilterProcess(void *_filter, unsigned char *buffer, U32 length, 
 	//	ntylog("ntyProtocolFilterProcess clientcrc:%x, servercrc:%x, buffer length:%d", u32ClientCrc, u32Crc, length);
 	//	return;
 #if 1 
-		ntylog("ntyProtocolFilterProcess clientcrc:%x, servercrc:%x, buffer length:%d", u32ClientCrc, u32Crc, length);
+		ntylog("ntyProtocolFilterProcess clientcrc:%x, servercrc:%x, buffer length:%d,devid:%lld\n", u32ClientCrc, u32Crc, length,client->devId);
 		//const Client *client = obj;
 		if (Record == NULL) return ; //illeges record
 		Client* pClient = Record->value;
 		if (pClient == NULL) return ;
+		ntylog("ntyProtocolFilterProcess --> prepare to recreate voice packet,pClient->devId:%lld\n",pClient->devId);
 		
-		ntylog(" ntyProtocolFilterProcess --> prepare to recreate voice packet\n");
-		
-		if (1 /*&& client->connectType == PROTO_TYPE_TCP*/) { //have part data
-			
+		if (1 /*&& client->connectType == PROTO_TYPE_TCP*/) { //have part data	
 			int bCopy = 0;
 			int bIndex = 0, bLength = pClient->rLength;
 			U8 bBuffer[PACKET_BUFFER_SIZE] = {0};
-
 			do {
-
 				if(ntyIsPacketHeader(buffer[NTY_PROTO_VERSION_IDX]) && ntyIsVoicePacketHeader(buffer[NTY_PROTO_MSGTYPE_IDX])) {
-
 					bCopy = ntyVoicePacketLength(buffer);
-					if (bCopy < length) {
-						ntylog(" complete voice packet bCopy :%d\n", bCopy);
+					ntylog( "packet bCopy:%d,length:%d\n", bCopy,length );
+					if ( bCopy < length ) {
+						ntylog("complete voice packet\n");
 						u32Crc = ntyGenCrcValue(buffer, bCopy-4);
 						u32ClientCrc = *((U32*)(buffer+bCopy-4));
-
-						if (u32Crc == u32ClientCrc) {
-							ntylog(" CMD:%x, Version:[%c]\n", buffer[NTY_PROTO_MSGTYPE_IDX], buffer[NTY_PROTO_DEVTYPE_IDX]);
+						if ( u32Crc == u32ClientCrc ) {
+							ntylog("packet MSG:%x,Version:[%c]\n", buffer[NTY_PROTO_MSGTYPE_IDX], buffer[NTY_PROTO_DEVTYPE_IDX] );
 							ntyHandleRequest(_filter, buffer, bCopy, obj);
-
 							ntyClientBufferRelease(pClient);
 						}
-
 						memcpy(pClient->recvBuffer, buffer+bCopy, length-bCopy);
 						pClient->rLength = length-bCopy;
-
-					} else if (bCopy == length) {
-						ntylog(" u32Crc == u32ClientCrc, must be error\n");
+					} else if ( bCopy == length ) {
+						ntylog("u32Crc==u32ClientCrc,must be error\n");
 						return ntyHandleRequest(_filter, buffer, length, obj);
 					} else {
-						ntylog(" no-complete voice packet\n");
+						ntylog("no-complete voice packet\n");
 						memcpy(pClient->recvBuffer, buffer, length);
 						pClient->rLength = length;
-
 						break;
 					}
 					length -= bCopy;
 					buffer += bCopy;
 					
 				} else {		
-			
 					bCopy = (length > PACKET_BUFFER_SIZE ? PACKET_BUFFER_SIZE : length);					
-					bCopy = (((bLength + bCopy) > PACKET_BUFFER_SIZE) ? (PACKET_BUFFER_SIZE - bLength) : bCopy);
-					
+					bCopy = (((bLength + bCopy) > PACKET_BUFFER_SIZE) ? (PACKET_BUFFER_SIZE - bLength) : bCopy);	
+					ntylog( "not head packet bCopy:%d,length:%d\n", bCopy,length );
 					pthread_mutex_lock(&pClient->bMutex);
 					memcpy(pClient->recvBuffer+pClient->rLength, buffer+bIndex, bCopy);
 					pClient->rLength %= PACKET_BUFFER_SIZE;
@@ -2688,29 +2669,20 @@ void ntyProtocolFilterProcess(void *_filter, unsigned char *buffer, U32 length, 
 
 					U32 uCrc = ntyGenCrcValue(bBuffer, bLength-4);
 					U32 uClientCrc = *((U32*)(bBuffer+bLength-4));
-
-					if (uCrc == uClientCrc)	{
-						ntylog(" CMD:%x, Version:[%c]\n", bBuffer[NTY_PROTO_MSGTYPE_IDX], bBuffer[NTY_PROTO_DEVTYPE_IDX]);
+					if ( uCrc == uClientCrc )	{
+						ntylog("MSG:%x, Version:[%c]\n", bBuffer[NTY_PROTO_MSGTYPE_IDX], bBuffer[NTY_PROTO_DEVTYPE_IDX]);
 						ntyHandleRequest(_filter, bBuffer, bLength, obj);
-
 						ntyClientBufferRelease(pClient);
 					} 
 					
 					length -= bCopy;
-					bIndex += bCopy;
-					
+					bIndex += bCopy;			
 				}
-				bCopy = 0;
-				
+				bCopy = 0;		
 			} while (length);
-		
-			return ;
-
-		}
-
-		
-#endif
-		
+			return;
+		}	
+#endif	
 	}
 
 	if ( Record != NULL ) {

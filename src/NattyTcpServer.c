@@ -157,7 +157,7 @@ static int ntyTcpRecv(int fd, U8 *buffer, int length, struct ev_io *watcher, str
 int ntyAddRelationMap(MessagePacket *msg) {
 	int ret = NTY_RESULT_SUCCESS;
 	void *map = ntyMapInstance();
-	ClientSocket * value = ntyMapSearch(map, msg->client->devId);
+	ClientSocket *value = ntyMapSearch(map, msg->client->devId);
 	if ( value == NULL ) {
 		ClientSocket *nValue = (NValue*)malloc(sizeof(ClientSocket));
 		if (nValue == NULL) return NTY_RESULT_ERROR;
@@ -174,13 +174,14 @@ int ntyAddRelationMap(MessagePacket *msg) {
 		
 		ret = ntyMapInsert(map, msg->client->devId, nValue);
 		if (ret == NTY_RESULT_EXIST || ret == NTY_RESULT_FAILED) {
-			free(nValue);
-			ASSERT(0);
+			ntylog( "ntyAddRelationMap ntyMapInsert exit\n" );
+			ntyFree(nValue);
 		} else if (ret == NTY_RESULT_PROCESS) { 
 		// RBTree have process ,
 		// should ret server is busy, and close socket
+			ntylog( "ntyAddRelationMap ntyMapInsert busy\n" );
 			ntyJsonCommonResult(msg->client->devId, NATTY_RESULT_CODE_BUSY);
-			free(nValue);
+			ntyFree(nValue);
 		} else if (ret == NTY_RESULT_SUCCESS) {		
 			//insert HashTable
 			void *hash = ntyHashTableInstance();
@@ -188,7 +189,7 @@ int ntyAddRelationMap(MessagePacket *msg) {
 			payload.id = msg->client->devId;
 			ret = ntyHashTableUpdate(hash, msg->watcher->fd, &payload);		
 		}else{}
-		
+			
 	} else {
 	#if ENABLE_EV_WATCHER_MODE	
 		if (value->watcher != msg->watcher) 
@@ -234,8 +235,7 @@ int ntyAddRelationMap(MessagePacket *msg) {
 
 int ntyDelRelationMap(C_DEVID id) {
 	int ret = NTY_RESULT_SUCCESS;
-	void *map = ntyMapInstance();
-	
+	void *map = ntyMapInstance();	
 	NValue * value = ntyMapSearch(map, id);
 	if ( value != NULL ) {
 		int sockfd = value->watcher->fd;
@@ -245,20 +245,21 @@ int ntyDelRelationMap(C_DEVID id) {
 		//release client socket
 		ntyReleaseSocket(tcp_mainloop, value->watcher);
 		//release value
-		ntyFree(value);
-		
+		ntyFree(value);	
 		ret = ntyMapDelete(map, id);
-		if (ret == NTY_RESULT_FAILED) {
-			ntylog("Map Delete ret : %d", ret);
+		if (ret == NTY_RESULT_PROCESS) {
+			ntylog("ntyDelRelationMap rbtree have delete ret:%d", ret);
 		} else if (ret == NTY_RESULT_NOEXIST) {
-			ntylog("Map Delete ret : %d", ret);
-		}else{}
+			ntylog("ntyDelRelationMap rbtree no exit ret:%d", ret);
+		}else{
+			ntylog("ntyDelRelationMap rbtree delete success ret:%d", ret);
+		}
 	#if 1 
 		//Delete BHeap Table		
 	#endif
 		return ret;	
 	} else {
-		ntylog(" Map Have No Id --> %lld\n", id);
+		ntylog("ntyDelRelationMap Have No Id:%lld\n", id);
 		return NTY_RESULT_NOEXIST;
 	}
 

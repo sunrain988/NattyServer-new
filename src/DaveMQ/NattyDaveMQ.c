@@ -290,8 +290,8 @@ static void ntyDaveMqHandleMTKQuickLocation(Job *job) {
 
 static void ntyDaveMqHandleCallback(Job *job) {
 	VALUE_TYPE *tag = (VALUE_TYPE*)job->user_data;
-
 	if (tag->cb != NULL) {
+		ntylog( "ntyDaveMqHandleCallback begin\n" );
 		tag->cb(tag); //callback
 	}
 	

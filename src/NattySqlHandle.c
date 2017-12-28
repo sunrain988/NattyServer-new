@@ -81,10 +81,9 @@ int ntyVoiceAckHandle(void *arg) {
 	return ret;
 #else
 	//the client one by one to read offline messages from server,include commond,voice,bind confirm messages.
+	usleep(2000000);
 	tag->Type = MSG_TYPE_VOICE_OFFLINE_READ_HANDLE;
 	tag->cb = ntyReadOfflineVoiceHandle;	
-	//tag->Type = MSG_TYPE_OFFLINE_MSG_REQ_HANDLE;
-	//tag->cb = ntyOfflineMsgReqHandle;
 	ntyDaveMqPushMessage(tag);
 #endif
 	return 	NTY_RESULT_SUCCESS;	
@@ -820,9 +819,8 @@ int ntyCommonReqHandle(void *arg) {
 		ActionParam *pActionParam = malloc(len_ActionParam);
 		if (pActionParam == NULL) {
 			ntylog(" %s --> malloc failed ActionParam", __func__);
-			free(jsonstring);
-
-			return ;
+			ntyFree(jsonstring);
+			return NTY_RESULT_ERROR;
 		}
 		memset(pActionParam, 0, len_ActionParam);
 		 
@@ -834,13 +832,14 @@ int ntyCommonReqHandle(void *arg) {
 		pActionParam->index = 0;
 		
 		ntyCommonReqAction(pActionParam);
-		free(pActionParam);
+		ntyFree(pActionParam);
 
 	}
-	free(jsonstring);
+	ntyFree(jsonstring);
 	ntyFreeJsonValue(json);
+	ntyFree(tag);
 
-	free(tag);
+	return NTY_RESULT_SUCCESS;
 }
 
 

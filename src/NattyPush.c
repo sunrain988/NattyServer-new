@@ -1033,7 +1033,7 @@ int ntyPushNotifyHandle(void *self, C_DEVID gId, U32 type, U32 counter, U8 *msg,
 }
 
 #if 0
-//²âÊÔÊ±ºòĞèÒªĞŞ¸Ä NattyAbstractClass.h #define NTY_DEBUG 	2
+//Â²Ã¢ÃŠÃ”ÃŠÂ±ÂºÃ²ÃÃ¨Ã’ÂªÃÃÂ¸Ã„ NattyAbstractClass.h #define NTY_DEBUG 	2
 //gcc -o NattyPush NattyPush.c NattyAbstractClass.c NattyUtils.c NattyLetter.c -lssl -lcrypto -lpthread -I ../include/   
 //gcc -o NattyPush NattyPush.c NattyAbstractClass.c -lssl -lcrypto -lpthread -I ../include/
 

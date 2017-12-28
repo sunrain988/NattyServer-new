@@ -2970,7 +2970,7 @@ int ntyExecuteCommonItemMsgDelete(void *self, int msgId) {
 	TRY
 	{
 		con = ntyCheckConnection(self, con);
-		if (con == NULL) {
+		if (con == NULL) {
 			ntylog( "ntyExecuteCommonItemMsgDelete conn NULL\n" );
 			ret = -1;
 		} else {

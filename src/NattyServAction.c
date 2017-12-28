@@ -3641,14 +3641,6 @@ int ntyClientSelectServiceReqAction( ClientActionParam *pClientActionParam,Clien
 	}
 	memset( pClientServiceAck, 0, sizeof(ClientServiceAck) );	
 
-	//U8 customerNum[32] = {0};
-	//U8 doctorNum[32] = {0};
-	//U8 alarmFreq[32] = {0};
-	//U8 alarmTime[32] = {0};
-	//char *customerNum = malloc( 32 );
-	//char *doctorNum = malloc( 32 );
-	//memset( customerNum, 0, 32 );
-	//memset( doctorNum, 0, 32);
 	char *customerNum = malloc(32);
 	memset( customerNum, 0, 32 );
 	char *doctorNum = malloc(32);
@@ -3675,20 +3667,11 @@ int ntyClientSelectServiceReqAction( ClientActionParam *pClientActionParam,Clien
 		int nRet = ntySendUserDataAck( fromId, jsonResult, strlen(jsonResult) );
 	}else{}
 
-	free( pClientServiceAck );
-	pClientServiceAck = NULL;
-	if( customerNum != NULL ){
-		free(customerNum);
-	}
-	if( doctorNum != NULL ){
-		free(doctorNum);
-	}
-	if( alarmFreq != NULL ){
-		free(alarmFreq);
-	}
-	if( alarmTime != NULL ){
-		free(alarmTime);
-	}
+	ntyFree( pClientServiceAck );
+	ntyFree( customerNum );
+	ntyFree( doctorNum );
+	ntyFree( alarmFreq );
+	ntyFree( alarmTime );
 
 	return 0;
 }
@@ -3707,17 +3690,17 @@ int ntyClientSelectInitReqAction( ClientActionParam *pClientActionParam,ClientSe
 	}
 	memset( pClientInitAck, 0, sizeof(ClientInitAck) );	
 
-	//U8 initStr[16] = {0};
-	//char *initStr = malloc( 16 );
-	//memset( initStr, 0, 16 );
-	char *initStr = malloc(32);
-	memset( initStr, 0, 32 );
+	char *initStr = malloc(8);
+	memset( initStr, 0, 8 );
 	ret = ntyExecuteClientSelectInitHandle( fromId, toId, initStr );
 	if ( ret == -1 ){
 		ntylog( "ntyClientSelectInitReqAction ntyExecuteClientSelectInitHandle --> DB Exception" );
 	}else if( ret == NTY_RESULT_SUCCESS ){	
 		pClientInitAck->IMEI = pClientSelectReq->IMEI;
-		pClientInitAck->Category = pClientSelectReq->Category;	
+		pClientInitAck->Category = pClientSelectReq->Category;
+		if ( strlen(initStr) == 0 ){
+			memcpy( initStr, "0", 1 );
+		}
 		pClientInitAck->Init = initStr;
 		ntylog( "ntyClientSelectInitReqAction initStr:%s,initPtr:%s\n",initStr, pClientInitAck->Init );
 		char *jsonResult = ntyClientInitAckJsonCompose( pClientInitAck );
@@ -3727,10 +3710,8 @@ int ntyClientSelectInitReqAction( ClientActionParam *pClientActionParam,ClientSe
 			int nRet = ntySendUserDataAck( fromId, jsonResult, strlen(jsonResult) );
 		}
 	}else{}	
-
-	//free( initStr );
-	free( pClientInitAck );
-	pClientInitAck = NULL;
+	ntyFree( initStr );
+	ntyFree( pClientInitAck );
 
 	return 0;
 }
