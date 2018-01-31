@@ -70,6 +70,9 @@
 
 #define ENABLE_NTY_CONNECTION_POOL			1
 
+//rbtree replace bplustree save Client struct
+#define ENABLE_RBTREE_REPLACE_BPTREE		1
+
 #if 1
 
 #define CUSTOM_JG			1

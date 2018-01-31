@@ -409,6 +409,109 @@ Client* ntyAddClientHeap(const void * obj, int *result) {
 	return NULL;
 }
 
+Client* ntyAddClientRBTree(const void * obj, int *result) {
+	const Client *client = obj;
+	int ret = -1;
+
+	void *map = ntyRBTreeMapInstance();
+	Client *ptrClient = (Client *)ntyMapSearch( map, client->devId );
+	if ( ptrClient == NULL ){
+		ntylog("ntyAddClientRBTree not exist:%lld\n", client->devId);
+		Client *pClient = (Client*)malloc( sizeof(Client) );
+		if ( pClient == NULL ) {
+			*result = NTY_RESULT_ERROR;
+			ntylog( "ntyAddClientRBTree pClient malloc failed\n" );
+			return NULL;
+		}
+		memset( pClient, 0, sizeof(Client) );		
+		memcpy( pClient, client, sizeof(Client) );
+		
+		//insert rbtree
+		ret = ntyMapInsert( map, client->devId, pClient );
+		if (ret == NTY_RESULT_EXIST || ret == NTY_RESULT_FAILED) {
+			ntylog( "ntyAddClientRBTree ntyMapInsert exit\n" );
+			ntyFree( pClient );
+			*result = ret;
+			return NULL;
+		} else if (ret == NTY_RESULT_PROCESS) { 
+			// RBTree have process ,
+			ntylog( "ntyAddClientRBTree ntyMapInsert busy\n" );
+			ntyFree( pClient );
+			*result = ret;
+			return NULL;
+		} else if (ret == NTY_RESULT_SUCCESS) {
+			ntylog( "ntyAddClientRBTree ntyMapInsert success\n" );
+		}
+		else{}
+
+		pthread_mutex_t blank_mutex = PTHREAD_MUTEX_INITIALIZER;
+		memcpy( &pClient->bMutex, &blank_mutex, sizeof(pClient->bMutex) );
+		
+		if ( pClient->online==0 && pClient->deviceType == NTY_PROTO_CLIENT_WATCH ) {
+			ntyExecuteChangeDeviceOnlineStatusHandle( pClient->devId, 1 );
+		}
+		pClient->online = 1;
+		pClient->rLength = 0;
+		pClient->recvBuffer = malloc( PACKET_BUFFER_SIZE );
+		if ( pClient->recvBuffer == NULL ) {
+			ntyFree( pClient );
+			return NULL;
+		}
+		memset( pClient->recvBuffer, 0, PACKET_BUFFER_SIZE );
+		//voice buffer
+		pClient->rBuffer = NULL;
+		pClient->sBuffer = NULL;
+
+	#if ENABLE_NATTY_TIME_STAMP //TIME Stamp 	
+		pClient->stamp = ntyTimeStampGenrator();
+	#endif
+		if ( pClient->friends == NULL ) {
+			pClient->friends = ntyVectorCreator();
+			if ( pClient->friends == NULL ) {
+				*result = NTY_RESULT_ERROR;
+				return pClient;
+			}
+			//ntylog("ntyAddClientHeap --> friend addr:%llx\n", (C_DEVID)pClient->friends);
+		#if ENABLE_CONNECTION_POOL
+			if (pClient->deviceType == NTY_PROTO_CLIENT_ANDROID 
+				|| pClient->deviceType == NTY_PROTO_CLIENT_IOS 
+				|| pClient->deviceType == NTY_PROTO_CLIENT_IOS_PUBLISH) { //App
+				if(-1 == ntyQueryWatchIDListSelectHandle(pClient->devId, pClient->friends)) {
+					ntylog("ntyAddClientRBTree ntyQueryWatchIDListSelectHandle Failed\n");		
+				}
+			} else if (pClient->deviceType == NTY_PROTO_CLIENT_WATCH) { //Device
+				if (-1 == ntyQueryAppIDListSelectHandle(pClient->devId, pClient->friends)) {
+					ntylog("ntyAddClientRBTree ntyQueryAppIDListSelectHandle Failed\n");				
+				}
+			} else {
+				ntylog("Protocol Device Type is Error:%c\n", pClient->deviceType);
+			}
+		#endif
+		}
+		if ( pClient->group == NULL ) {
+	#if 1 //Add Groups
+	#endif
+		}
+
+		*result = NTY_RESULT_SUCCESS;
+		return pClient;
+	} else {
+		ntylog("ntyAddClientHeap exist:%lld\n", client->devId);
+	#if ENABLE_NATTY_TIME_STAMP //TIME Stamp 	
+		ptrClient->stamp = ntyTimeStampGenrator();
+	#endif
+		if ( ptrClient->online==0 && ptrClient->deviceType == NTY_PROTO_CLIENT_WATCH ) {
+			ntyExecuteChangeDeviceOnlineStatusHandle(ptrClient->devId, 1);
+		}
+		ptrClient->online = 1;
+
+		return ptrClient;
+	}
+
+	return NULL;
+}
+
+
 int ntyDelClientHeap(C_DEVID clientId) {
 	int ret = -1;
 
@@ -453,6 +556,38 @@ int ntyDelClientHeap(C_DEVID clientId) {
 	return NTY_RESULT_SUCCESS;
 }
 
+int ntyDelClientRBTree(C_DEVID clientId) {
+	int ret = -1;
+
+	void *map = ntyRBTreeMapInstance();
+	Client *pClient = (Client *)ntyRBTreeSearch( map, clientId );
+	if ( pClient == NULL ) {
+			ntylog("ntyDelClientRBTree pClient==NULL:%lld\n", clientId);
+			return NTY_RESULT_NOEXIST;
+	}
+	pClient->rLength = 0;
+	if ( pClient->recvBuffer != NULL ) {
+		free(pClient->recvBuffer);
+	}
+	if ( pClient->friends != NULL ) {
+		ntyVectorDestory(pClient->friends);
+	}
+	#if 0 //release  groups
+		pClient->group
+	#endif
+
+	ret = ntyMapDelete( map, clientId );
+	if ( ret == NTY_RESULT_FAILED) {
+		ntylog("ntyDelClientRBTree Delete Error\n");
+	} else if (ret == NTY_RESULT_NOEXIST) {
+		ntylog("ntyDelClientRBTree Delete Error\n");
+	}else{}
+	
+	free( pClient );
+	return NTY_RESULT_SUCCESS;
+}
+
+
 /*
  * Release Client
  * 1. HashTable	Hash
@@ -480,11 +615,16 @@ int ntyClientCleanup(ClientSocket *client) { //
 		//release client socket map
 		ret = ntyDelRelationMap(Id);			
 		//release HashMap
-#if 0 //no delete from BHeap
+	#if 0 //no delete from BHeap
 		ret = ntyDelClientHeap(Id);
 		ntylog(" ntyMapDelete --> ret : %d\n", ret);
-#endif
+	#endif
+	
+	#if ENABLE_RBTREE_REPLACE_BPTREE
+		ntyOfflineClientRBTree( Id );	
+	#else
 		ntyOfflineClientHeap(Id);
+	#endif
 	} else {
 		ntylog("ntyClientCleanup ntyHashTableDelete failed ret:%d\n", ret);
 	}
@@ -499,6 +639,7 @@ int ntyOfflineClientHeap(C_DEVID clientId) {
 
 	if (record == NULL) {
 		ntylog("Error OfflineClientHeap is not Exist %lld\n", clientId);
+		ntyExecuteChangeDeviceOnlineStatusHandle( clientId, 0 );	//offline status	
 		//ntyPrintTree(heap->root);  //easy error,just for debug
 		return NTY_RESULT_NOEXIST;
 	}
@@ -525,7 +666,31 @@ int ntyOfflineClientHeap(C_DEVID clientId) {
 	return NTY_RESULT_SUCCESS;
 }
 
+int ntyOfflineClientRBTree(C_DEVID clientId) {
+	void *map = ntyRBTreeMapInstance();
+	Client *pClient = (Client *)ntyRBTreeSearch( map, clientId );
 
+	if ( pClient == NULL ) {
+		ntylog("ntyOfflineClientRBTree pClient==NULL:%lld\n", clientId);
+		ntyExecuteChangeDeviceOnlineStatusHandle( clientId, 0 );	//offline status
+		return NTY_RESULT_NOEXIST;
+	}
+
+	pClient->online = 0;	//offline flag
+	if ( pClient->deviceType == NTY_PROTO_CLIENT_WATCH ) {
+		ntyExecuteChangeDeviceOnlineStatusHandle(pClient->devId, 0);
+	}
+	#if 0	
+	if (pClient->deviceType == NTY_PROTO_CLIENT_IOS || pClient->deviceType == NTY_PROTO_CLIENT_IOS_PUBLISH) {
+		if (pClient->token != NULL) {
+			free(pClient->token);
+			pClient->token = NULL;
+		}
+	}
+	#endif	
+	
+	return NTY_RESULT_SUCCESS;
+}
 
 
 int ntyOnlineClientHeap(C_DEVID clientId) {
@@ -534,6 +699,7 @@ int ntyOnlineClientHeap(C_DEVID clientId) {
 
 	if (record == NULL) {
 		ntylog(" Error ntyOnlineClientHeap is not Exist : %lld\n", clientId);
+		ntyExecuteChangeDeviceOnlineStatusHandle( clientId, 1 );	//online status	
 		//ntyPrintTree(heap->root);  //easy error,just for debug
 		return NTY_RESULT_NOEXIST;
 	}
@@ -556,13 +722,35 @@ int ntyOnlineClientHeap(C_DEVID clientId) {
 	return NTY_RESULT_SUCCESS;
 }
 
+int ntyOnlineClientRBTree(C_DEVID clientId) {
+	void *map = ntyRBTreeMapInstance();
+	Client *pClient = (Client *)ntyRBTreeSearch( map, clientId );
+	if ( pClient == NULL ) {
+		ntylog("ntyOnlineClientRBTree pClient==NULL:%lld\n", clientId);
+		ntyExecuteChangeDeviceOnlineStatusHandle( clientId, 1 );	//online status	
+		return NTY_RESULT_NOEXIST;
+	}
+	
+#if ENABLE_NATTY_TIME_STAMP //TIME Stamp 	
+	pClient->stamp = ntyTimeStampGenrator();
+#endif
+	if ( pClient->online == 0 && pClient->deviceType == NTY_PROTO_CLIENT_WATCH ) {
+		ntyExecuteChangeDeviceOnlineStatusHandle(pClient->devId, 1);
+	}
+	pClient->online = 1;
+
+	return NTY_RESULT_SUCCESS;
+}
+
+
 
 int ntyLogoutOfflineClientHeap(C_DEVID clientId) {
 	BPTreeHeap *heap = ntyBHeapInstance();
 	NRecord *record = ntyBHeapSelect(heap, clientId);
 
 	if (record == NULL) {
-		ntylog("Error ntyLogoutOfflineClientHeap is not Exist %lld\n", clientId);
+		ntylog("Error ntyLogoutOfflineClientHeap is not Exist:%lld\n", clientId);
+		ntyExecuteChangeDeviceOnlineStatusHandle( clientId, 0 );	//offline status
 		//ntyPrintTree(heap->root); //easy error,just for debug
 		return NTY_RESULT_NOEXIST;
 	}
@@ -576,6 +764,30 @@ int ntyLogoutOfflineClientHeap(C_DEVID clientId) {
 
 	pClient->online = 0;
 	if (pClient->deviceType == NTY_PROTO_CLIENT_WATCH) {
+		ntyExecuteChangeDeviceOnlineStatusHandle(pClient->devId, 0);
+	}
+
+	if (pClient->deviceType == NTY_PROTO_CLIENT_IOS || pClient->deviceType == NTY_PROTO_CLIENT_IOS_PUBLISH) {
+		if (pClient->token != NULL) {
+			free(pClient->token);
+			pClient->token = NULL;
+		}
+	}
+	
+	return NTY_RESULT_SUCCESS;
+}
+
+int ntyLogoutOfflineClientRBTree(C_DEVID clientId) {
+	void *map = ntyRBTreeMapInstance();
+	Client *pClient = (Client *)ntyRBTreeSearch( map, clientId );
+	if ( pClient == NULL ) {
+		ntylog("ntyLogoutOfflineClientRBTree pClient==NULL:%lld\n", clientId);
+		ntyExecuteChangeDeviceOnlineStatusHandle( clientId, 0 );	//offline status
+		return NTY_RESULT_NOEXIST;
+	}
+
+	pClient->online = 0;
+	if ( pClient->deviceType == NTY_PROTO_CLIENT_WATCH ) {
 		ntyExecuteChangeDeviceOnlineStatusHandle(pClient->devId, 0);
 	}
 
@@ -625,7 +837,12 @@ void ntyLoginPacketHandleRequest(const void *_self, unsigned char *buffer, int l
 		ntyFree( pMsg );
 
 		int ret = NTY_RESULT_SUCCESS;
-		Client *pClient = ntyAddClientHeap( client, &ret );
+		#if ENABLE_RBTREE_REPLACE_BPTREE
+			Client *pClient = ntyAddClientRBTree(client, &ret);
+		#else
+			Client *pClient = ntyAddClientHeap( client, &ret );
+		#endif
+		
 		if ( pClient != NULL ) {
 			//ntySendFriendsTreeIpAddr(pClient, 1);
 			pClient->deviceType = client->deviceType; //Client from Android switch IOS 
@@ -739,7 +956,11 @@ void ntyHeartBeatPacketHandleRequest(const void *_self, unsigned char *buffer, i
 		C_DEVID fromId = *(C_DEVID*)(buffer+NTY_PROTO_HEARTBEAT_REQ_DEVID_IDX);
 #if 1
 		int ret = NTY_RESULT_SUCCESS;
+	#if ENABLE_RBTREE_REPLACE_BPTREE
+		Client *pClient = ntyAddClientRBTree(client, &ret);
+	#else
 		Client *pClient = ntyAddClientHeap(client, &ret);
+	#endif
 		if (pClient == NULL) {
 			ntylog(" ntyHeartBeatPacketHandleRequest --> Error return\n");
 			return;
@@ -783,7 +1004,12 @@ void ntyLogoutPacketHandleRequest(const void *_self, U8 *buffer, int length, con
 #if 0 //offline
 		ntyOfflineClientHeap(client->devId);
 #else
+	#if ENABLE_RBTREE_REPLACE_BPTREE
+		ntyLogoutOfflineClientRBTree(client->devId);
+	#else
 		ntyLogoutOfflineClientHeap(client->devId);
+	#endif
+	
 #endif
 		ntylog("====================end ntyLogoutPacketHandleRequest action ==========================\n");
 	} else if (ntyPacketGetSuccessor(_self) != NULL) {
@@ -1170,7 +1396,14 @@ void ntyVoiceDataReqPacketHandleRequest(const void *_self, unsigned char *buffer
 
 		ntylog("ntyVoiceDataReqPacketHandleRequest Count:%d, index:%d, pktLength:%d, length:%d, pktLength%d\n", 
 			Count, index, pktLength, length, NTY_PROTO_VOICE_DATA_REQ_PKTLENGTH_IDX);
-
+	#if ENABLE_RBTREE_REPLACE_BPTREE
+		void *map = ntyRBTreeMapInstance();
+		Client *pClient = (Client *)ntyMapSearch( map, client->devId );
+		if ( pClient== NULL ){
+			ntylog( "ntyVoiceDataReqPacketHandleRequest not exit:%lld,return\n",client->devId );
+			return;
+		}
+	#else
 		void *heap = ntyBHeapInstance();
 		NRecord *record = ntyBHeapSelect(heap, client->devId);
 		if (record == NULL) {
@@ -1178,6 +1411,11 @@ void ntyVoiceDataReqPacketHandleRequest(const void *_self, unsigned char *buffer
 			return ;
 		}
 		Client *pClient = (Client*)record->value;
+		if ( pClient== NULL ){
+			ntylog( "ntyVoiceDataReqPacketHandleRequest not exit:%lld,return\n",client->devId );
+			return;
+		}
+	#endif
 
 		if (pClient->rBuffer == NULL) {
 			pClient->rBuffer = malloc(NTY_VOICEREQ_COUNT_LENGTH*NTY_VOICEREQ_PACKET_LENGTH);
@@ -1370,15 +1608,15 @@ void ntyUnBindDevicePacketHandleRequest(const void *_self, unsigned char *buffer
 		
 		int contactsTempId = 0;
 #if ENABLE_CONNECTION_POOL
-#if 0
+	#if 0
 		int ret = ntyExecuteDevAppRelationDeleteHandle(AppId, DeviceId);
-#else
+	#else
 		int ret = ntyExecuteDevAppGroupDeleteHandle(AppId, DeviceId, &contactsTempId);
-#endif
+	#endif
 		if (ret == -1) {
 			ntylog(" ntyUnBindDevicePacketHandleRequest --> DB Exception\n");
 		} else if (ret == 0) {
-#if 0
+	#if 0
 			void *pRBTree = ntyRBTreeInstance();
 			Client *aclient = (Client*)ntyRBTreeInterfaceSearch(pRBTree, AppId);
 			if (aclient != NULL) {
@@ -1393,34 +1631,57 @@ void ntyUnBindDevicePacketHandleRequest(const void *_self, unsigned char *buffer
 					ntyFriendsTreeDelete(dclient->friends, AppId);
 				}
 			}
-#else
-			int retTemp = 0;
-
-			//void *map = ntyMapInstance();
+	#else
+		int retTemp = 0;
+	
+		#if ENABLE_RBTREE_REPLACE_BPTREE
+			void *map = ntyRBTreeMapInstance();
+			Client *aclient = (Client *)ntyMapSearch( map, AppId );
+			if ( aclient != NULL ){
+				ntylog("ntyUnBindDevicePacketHandleRequest rbtree exit:%lld\n",AppId);
+				retTemp = ntyVectorDelete(aclient->friends, &DeviceId);
+				ntylog("ntyVectorDelete AppId:%lld ret:%d\n", AppId, retTemp);
+			}else{
+				ntylog("ntyUnBindDevicePacketHandleRequest rbtree not exit:%lld\n",AppId);
+			}
+			
+			Client *dclient = (Client *)ntyMapSearch( map, DeviceId );
+			if ( dclient != NULL ){
+				ntylog("ntyUnBindDevicePacketHandleRequest rbtree exit:%lld\n",DeviceId);	
+				retTemp = ntyVectorDelete(dclient->friends, &AppId);
+				ntylog("ntyVectorDelete DeviceId:%lld ret:%d\n", DeviceId, retTemp);
+			}else{
+				ntylog("ntyUnBindDevicePacketHandleRequest rbtree not exit:%lld\n",DeviceId);
+			}
+		#else
 			void *heap = ntyBHeapInstance();
 			NRecord *record = ntyBHeapSelect(heap, AppId);
 			if (record != NULL) {
 				Client *aclient = (Client *)record->value;
-				if ( aclient == NULL ){
-					ntylog("ntyUnBindDevicePacketHandleRequest ->aclient==NULL\n");
-					return ;
+				if ( aclient != NULL ){
+					ntylog("ntyUnBindDevicePacketHandleRequest rbtree exit:%lld\n",AppId);
+					retTemp = ntyVectorDelete(aclient->friends, &DeviceId);
+					ntylog("ntyVectorDelete AppId:%lld ret:%d\n", AppId, retTemp);
+				}else{
+					ntylog("ntyUnBindDevicePacketHandleRequest rbtree not exit:%lld\n",AppId);
 				}
-				ntylog("ntyUnBindDevicePacketHandleRequest -> record!=NULL AppId\n");
-				retTemp = ntyVectorDelete(aclient->friends, &DeviceId);
-				ntylog("ntyVectorDelete AppId:%lld ret : %d\n", AppId, retTemp);
+
 			}
 
 			record = ntyBHeapSelect(heap, DeviceId);
 			if (record != NULL) {
-				Client *dclient = (Client *)record->value;
-				if ( dclient == NULL ){
-					ntylog("ntyUnBindDevicePacketHandleRequest ->aclient==NULL\n");
-					return ;
+				if ( dclient != NULL ){
+					ntylog("ntyUnBindDevicePacketHandleRequest rbtree exit:%lld\n",DeviceId);	
+					retTemp = ntyVectorDelete(dclient->friends, &AppId);
+					ntylog("ntyVectorDelete DeviceId:%lld ret:%d\n", DeviceId, retTemp);
+				}else{
+					ntylog("ntyUnBindDevicePacketHandleRequest rbtree not exit:%lld\n",DeviceId);
 				}
-				ntylog("ntyUnBindDevicePacketHandleRequest -> record!=NULL DeviceId\n");	
-				retTemp = ntyVectorDelete(dclient->friends, &AppId);
-				ntylog("ntyVectorDelete DeviceId:%lld ret : %d\n", DeviceId, retTemp);
+
 			}
+
+		#endif
+		
 			DeviceDelContactsAck *pDeviceDelContactsAck = malloc(sizeof(DeviceDelContactsAck));
 			if (pDeviceDelContactsAck == NULL) { 
 				return;
@@ -1452,9 +1713,9 @@ void ntyUnBindDevicePacketHandleRequest(const void *_self, unsigned char *buffer
 
 			ntyJsonFree(jsonresult);
 			ntyFree(pDeviceDelContactsAck);
-#endif		
+	#endif		
 			ret = NTY_RESULT_SUCCESS;
-		}
+		}else{}
 		ntyProtoUnBindAck(AppId, DeviceId, ret);
 #endif		
 		
@@ -2277,10 +2538,19 @@ void ntyMessagePushPacketHandleRequest(const void *_self, unsigned char *buffer,
 		memcpy( jsonstring, buffer+NTY_PROTO_MSG_PUSH_JSON_CONTENT_IDX, jsonLength );		
 		ntylog( "ntyMessagePushPacketHandleRequest --> fromId:%lld, toId:%lld, json:%s, jsonlength:%d\n", fromId, toId, jsonstring, jsonLength );
 
+	#if ENABLE_RBTREE_REPLACE_BPTREE
+		void *map = ntyRBTreeMapInstance();
+		Client *pClient = (Client *)ntyMapSearch( map, toId );
+		if ( pClient == NULL ){
+			ntylog( "ntyMessagePushPacketHandleRequest not exit:%lld\n", toId );
+			return;
+		}
+	#else
 		void *heap = ntyBHeapInstance();
 		NRecord *record = ntyBHeapSelect( heap, toId );
 		if ( record == NULL ) return ;
 		Client *pClient = (Client *)record->value;
+	#endif
 		
 		if ( pClient->deviceType != NTY_PROTO_CLIENT_IOS && pClient->deviceType != NTY_PROTO_CLIENT_IOS_PUBLISH 
 			&& pClient->deviceType != NTY_PROTO_CLIENT_IOS_APP_B && pClient->deviceType != NTY_PROTO_CLIENT_IOS_APP_B_PUBLISH) {
@@ -2405,7 +2675,11 @@ static void ntyHandleRequest(void *_filter, unsigned char *buffer, U32 length, c
 		if (msg == NULL) return ;
 		
 		const Client *client = msg->client;
-		ntyOnlineClientHeap(client->devId);
+		#if ENABLE_RBTREE_REPLACE_BPTREE
+			ntyOnlineClientRBTree(client->devId);
+		#else
+			ntyOnlineClientHeap(client->devId);
+		#endif
 #endif
 		(*filter)->handleRequest(_filter, buffer, length, obj);
 	}
@@ -2581,7 +2855,6 @@ void ntyProtocolFilterProcess(void *_filter, unsigned char *buffer, U32 length, 
 		}else{}
 	}
 
-#if 1
 	//data crc is right, and encryto
 	U32 u32Crc = ntyGenCrcValue(buffer, length-4);
 	U32 u32ClientCrc = *((U32*)(buffer+length-4));
@@ -2603,26 +2876,35 @@ void ntyProtocolFilterProcess(void *_filter, unsigned char *buffer, U32 length, 
 	C_DEVID id = ntySearchDevIdFromHashTable(&addr);
 	ntylog("ntyProtocolFilterProcess :%lld\n", id);
 	if (id == 0) return ;
-	#endif	
-	void *pBHeap = ntyBHeapInstance();
-	NRecord *Record = (NRecord*)ntyBHeapSelect(pBHeap, client->devId);
-	//if (Record == NULL) return ;
+	#endif
 	
-	//ntydbg(" client:%x, server:%x, length:%d", u32ClientCrc, u32Crc, length);
-	//ntylog("ntyProtocolFilterProcess clientcrc:%x, servercrc:%x, buffer length:%d", u32ClientCrc, u32Crc, length);
-	if (u32Crc != u32ClientCrc || length < NTY_PROTO_MIN_LENGTH) {
-	//if ( u32Crc != u32ClientCrc ){	//modify by Rain 2017-10-16	crc is wrong
-	//	ntylog("ntyProtocolFilterProcess clientcrc:%x, servercrc:%x, buffer length:%d", u32ClientCrc, u32Crc, length);
-	//	return;
-#if 1 
+	#if ENABLE_RBTREE_REPLACE_BPTREE
+		void *map = ntyRBTreeMapInstance();
+		Client *pClient = (Client *)ntyMapSearch( map, client->devId );	
+		if ( pClient == NULL ){ 
+			ntylog( "ntyProtocolFilterProcess rbtree not exit:%lld\n",client->devId );
+			return;
+		}
+	#else
+		void *pBHeap = ntyBHeapInstance();
+		NRecord *Record = (NRecord*)ntyBHeapSelect(pBHeap, client->devId);
+		if ( Record == NULL ){
+			ntylog( "ntyProtocolFilterProcess bplustree not exit:%lld\n",client->devId );
+			return;
+		}
+		Client *pClient = Record->value;
+		if ( pClient == NULL ){
+			ntylog( "ntyProtocolFilterProcess bplustree client not exit:%lld\n",client->devId );
+			return;
+		}
+	#endif
+	
+	if ( u32Crc != u32ClientCrc || length < NTY_PROTO_MIN_LENGTH ) {
 		ntylog("ntyProtocolFilterProcess clientcrc:%x, servercrc:%x, buffer length:%d,devid:%lld\n", u32ClientCrc, u32Crc, length,client->devId);
-		//const Client *client = obj;
-		if (Record == NULL) return ; //illeges record
-		Client* pClient = Record->value;
-		if (pClient == NULL) return ;
-		ntylog("ntyProtocolFilterProcess --> prepare to recreate voice packet,pClient->devId:%lld\n",pClient->devId);
-		
-		if (1 /*&& client->connectType == PROTO_TYPE_TCP*/) { //have part data	
+		if ( u32Crc != u32ClientCrc || length < NTY_PROTO_MIN_LENGTH ){	//modify by Rain 2017-10-16	crc is wrong
+			return; 
+		}		
+		if (1) { //have part data client->connectType == PROTO_TYPE_TCP
 			int bCopy = 0;
 			int bIndex = 0, bLength = pClient->rLength;
 			U8 bBuffer[PACKET_BUFFER_SIZE] = {0};
@@ -2681,19 +2963,12 @@ void ntyProtocolFilterProcess(void *_filter, unsigned char *buffer, U32 length, 
 				bCopy = 0;		
 			} while (length);
 			return;
-		}	
-#endif	
+		}		
 	}
 
-	if ( Record != NULL ) {
-		if ( Record->value != NULL ) {
-			Client* pClient = Record->value;
-			if ( pClient != NULL ) {
-				pClient->rLength = 0;
-			}
-		}
+	if ( pClient != NULL ) {
+		pClient->rLength = 0;
 	}
-#endif	
 
 	return ntyHandleRequest(_filter, buffer, length, obj);
 }

@@ -135,6 +135,7 @@ void ntyMapTraversal(void *self, HASHMAP_TRAVERSAL_CB handle_FN);
 void ntyMapRelease(void *self);
 
 
+void* ntyRBTreeMapInstance(void);
 
 
 

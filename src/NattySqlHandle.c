@@ -241,6 +241,21 @@ int ntyBindConfirmStep(C_DEVID adminId, C_DEVID *ProposerId, C_DEVID DeviceId, U
 	if (ret == -1) {
 		ntylog(" ntyBindConfirm --> DB Exception\n");
 	} else if (ret == 0) { //Bind Success Update RBTree	
+	#if ENABLE_RBTREE_REPLACE_BPTREE
+		void *map = ntyRBTreeMapInstance();
+		Client *aclient = (Client *)ntyMapSearch( map, AppId );
+		if ( aclient == NULL ){
+			ntylog(" ntyBindConfirmStep rbtree AppId not exit:%lld\n",AppId);
+			return NTY_RESULT_FAILED;
+		}
+		ntyVectorInsert(aclient->friends, &DeviceId, sizeof(C_DEVID));
+		Client *dclient = (Client *)ntyMapSearch( map, DeviceId );
+		if ( dclient == NULL ){
+			ntylog(" ntyBindConfirmStep rbtree DeviceId not exit:%lld\n",DeviceId);
+			return NTY_RESULT_FAILED;
+		}
+		ntyVectorInsert(dclient->friends, &AppId, sizeof(C_DEVID));
+	#else
 		void *heap = ntyBHeapInstance();
 		NRecord *record = ntyBHeapSelect(heap, AppId);
 		if (record != NULL) {
@@ -251,7 +266,6 @@ int ntyBindConfirmStep(C_DEVID adminId, C_DEVID *ProposerId, C_DEVID DeviceId, U
 			}
 			ntyVectorInsert(aclient->friends, &DeviceId, sizeof(C_DEVID));
 		}
-
 		record = ntyBHeapSelect(heap, DeviceId);
 		if (record != NULL) {
 			Client *dclient = record->value;
@@ -261,8 +275,11 @@ int ntyBindConfirmStep(C_DEVID adminId, C_DEVID *ProposerId, C_DEVID DeviceId, U
 			}
 			ntyVectorInsert(dclient->friends, &AppId, sizeof(C_DEVID));
 		}
+	#endif
+	
 	}else{}
-	ntylog(" ntyBindConfirm --> ntyJsonCommonResult\n");
+	
+	ntylog(" ntyBindConfirmStep end\n");
 	
 	return ret;
 }
@@ -396,11 +413,20 @@ int ntyReadOfflineVoiceHandle(void *arg) {
 	int ret = ntyReadOfflineVoiceMsgAction(fromId);
 	ntylog("ntyReadOfflineVoiceHandle fromId:%lld,ret:%d\n",fromId,ret );
 	
-	//if (ret == NTY_RESULT_NOEXIST) {		
+	//if (ret == NTY_RESULT_NOEXIST) {	
+		#if 1
+		void *map = ntyRBTreeMapInstance();
+		Client *pClient = (Client *)ntyMapSearch( map, fromId );
+		if ( pClient == NULL ){
+			ntylog( "ntyReadOfflineVoiceHandle rbtree not exit:%lld\n",fromId );
+		}
+		#else
 		void *heap = ntyBHeapInstance();
 		NRecord *record = ntyBHeapSelect(heap, fromId);
 		if (record == NULL) goto exit;	
 		Client *pClient = (Client *)record->value;
+		#endif
+		
 		if (pClient->deviceType != NTY_PROTO_CLIENT_WATCH) {
 			tag->Type = MSG_TYPE_BIND_OFFLINE_PUSH_HANDLE;
 			tag->cb = ntyReadOfflineBindMsgHandle;		
@@ -556,6 +582,17 @@ int ntyBindParserJsonHandle(void *arg) {
 		}
 		ntylog( "ntyBindParserJsonHandle ntyQueryAdminGroupInsertHandle after phonum:%s\n", phnum );
 #if 1 //Update By WangBoJing Bind Add
+  #if ENABLE_RBTREE_REPLACE_BPTREE
+	void *map = ntyRBTreeMapInstance();
+	Client *aclient = (Client *)ntyMapSearch( map, proposer );
+	if ( aclient != NULL ) {
+		ntyVectorInsert(aclient->friends, &devId, sizeof(C_DEVID));
+	}
+	Client *dclient = (Client *)ntyMapSearch( map, devId );
+	if ( dclient != NULL ) {
+		ntyVectorInsert(dclient->friends, &proposer, sizeof(C_DEVID));
+	}	
+  #else
 		void *heap = ntyBHeapInstance();
 		NRecord *record = ntyBHeapSelect(heap, proposer);
 		if (record != NULL) {
@@ -571,6 +608,7 @@ int ntyBindParserJsonHandle(void *arg) {
 				ntyVectorInsert(dclient->friends, &proposer, sizeof(C_DEVID));
 			}	
 		}
+  #endif
 #endif
 		//add contacts msg, send to watch
 		DeviceAddContactsAck *pDeviceAddContactsAck = malloc(sizeof(DeviceAddContactsAck));
@@ -751,17 +789,25 @@ int ntyIOSPushHandle(void *arg) {
 	U32 type = tag->arg;
 	C_DEVID toId = tag->toId;
 	U8 *msg = tag->Tag;
-
+	
+  #if ENABLE_RBTREE_REPLACE_BPTREE
+	void *map = ntyRBTreeMapInstance();
+	Client *pClient = (Client *)ntyMapSearch( map, toId );
+	if ( pClient == NULL ){
+		ntylog( "ntyIOSPushHandle rbtree not exit:%lld\n",toId );
+		goto exit;
+	}
+  #else
 	void *heap = ntyBHeapInstance();
 	NRecord *record = ntyBHeapSelect(heap, toId);
 	if (record == NULL) goto exit;
 	Client *pClient = (Client *)record->value;
+  #endif
 
-#if 1 //add offline msg counter function. select 
+  #if 1 //add offline msg counter function. select 
 	U32 counter = 0;
 	ntyQueryOfflineMsgCounterSelectHandle(toId, &counter);
-#endif
-
+  #endif
 	if (pClient->deviceType == NTY_PROTO_CLIENT_IOS) {
 		if (pClient->token != NULL) {
 			ntylog("ntySendPushNotify IOS--> selfId:%lld  token:%s\n", toId, pClient->token);

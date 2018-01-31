@@ -278,7 +278,7 @@ int ntySendBuffer(const UdpClient *client, unsigned char *buffer, int length) {
 	void *map = ntyMapInstance();
 	ASSERT(map != NULL);
 
-	NValue *nv = ntyMapSearch(map, client->devId);
+	NValue *nv = (NValue *)ntyMapSearch(map, client->devId);
 	ASSERT(nv != NULL);
 
 	if (client->connectType == PROTO_TYPE_UDP) {

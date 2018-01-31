@@ -171,7 +171,7 @@ int ntySendFriendsTreeIpAddr(const void *client, U8 reqType) {
 	const Client *pClient = client;
 
 	void *map = ntyMapInstance();
-	ClientSocket *toClient = ntyMapSearch(map, pClient->devId);
+	ClientSocket *toClient = (ClientSocket *)ntyMapSearch(map, pClient->devId);
 
 	//NVector *vector = pClient->friends;
 	int Count = 0;
@@ -222,7 +222,7 @@ int ntySendDeviceTimeCheckAck(C_DEVID fromId, U32 ackNum) {
 	length = NTY_PROTO_TIME_ACK_CRC_IDX+sizeof(U32);
 
 	void *map = ntyMapInstance();
-	ClientSocket *nSocket = ntyMapSearch(map, fromId);
+	ClientSocket *nSocket = (ClientSocket *)ntyMapSearch(map, fromId);
 	
 	return ntySendBuffer(nSocket, ack, length);
 	
@@ -245,7 +245,7 @@ int ntySendDeviceRouterInfo(const Client *pClient, U8 *buffer, int length) {
 	length += sizeof(U32);
 
 	void *map = ntyMapInstance();
-	ClientSocket *nSocket = ntyMapSearch(map, pClient->devId);
+	ClientSocket *nSocket = (ClientSocket *)ntyMapSearch(map, pClient->devId);
 
 	return ntySendBuffer(nSocket, buf, length);
 }
@@ -275,7 +275,7 @@ int ntySendAppRouterInfo(const Client *pClient, C_DEVID fromId, U8 *buffer, int 
 	length += sizeof(U32);
 
 	void *map = ntyMapInstance();
-	ClientSocket *nSocket = ntyMapSearch(map, pClient->devId);
+	ClientSocket *nSocket = (ClientSocket *)ntyMapSearch(map, pClient->devId);
 
 	return ntySendBuffer(nSocket, buf, length);
 }
@@ -391,7 +391,7 @@ void ntyProtoHttpProxyTransform(C_DEVID fromId, C_DEVID toId, U8 *buffer, int le
 	length += sizeof(U32);
 
 	void *map = ntyMapInstance();
-	ClientSocket *nSocket = ntyMapSearch(map, toId);
+	ClientSocket *nSocket = (ClientSocket *)ntyMapSearch(map, toId);
 	ntySendBuffer(nSocket, buf, length);
 	
 }
@@ -409,7 +409,7 @@ void ntyProtoHttpRetProxyTransform(C_DEVID toId, U8 *buffer, int length) {
 	}
 #else
 	void *map = ntyMapInstance();
-	ClientSocket *nSocket = ntyMapSearch(map, toId);
+	ClientSocket *nSocket = (ClientSocket *)ntyMapSearch(map, toId);
 
 #endif
 	buf[NTY_PROTO_VERSION_IDX] = NTY_PROTO_VERSION;
@@ -450,7 +450,7 @@ void ntyProtoBindAck(C_DEVID aid, C_DEVID did, int result) {
 	Client *client = (Client*)ntyRBTreeInterfaceSearch(pRBTree, aid);
 #else
 	void *map = ntyMapInstance();
-	ClientSocket *nSocket = ntyMapSearch(map, aid);
+	ClientSocket *nSocket = (ClientSocket *)ntyMapSearch(map, aid);
 #endif
 	if (nSocket == NULL) {
 		ntylog(" destClient is not exist proxy:%lld\n", aid);
@@ -488,7 +488,7 @@ void ntyProtoUnBindAck(C_DEVID aid, C_DEVID did, int result) {
 	Client *client = (Client*)ntyRBTreeInterfaceSearch(pRBTree, aid);
 #else
 	void *map = ntyMapInstance();
-	ClientSocket *nSocket = ntyMapSearch(map, aid);
+	ClientSocket *nSocket = (ClientSocket *)ntyMapSearch(map, aid);
 #endif
 	if (nSocket == NULL) {
 		ntylog(" destClient is not exist proxy:%lld\n", aid);
@@ -516,7 +516,7 @@ void ntyProtoICCIDAck(C_DEVID did, U8 *phnum, U16 length) {
 	Client *client = (Client*)ntyRBTreeInterfaceSearch(pRBTree, did);
 #else
 	void *map = ntyMapInstance();
-	ClientSocket *nSocket = ntyMapSearch(map, did);
+	ClientSocket *nSocket = (ClientSocket *)ntyMapSearch(map, did);
 #endif
 	if (nSocket == NULL) {
 		ntylog(" destClient is not exist proxy:%lld\n", did);
@@ -555,7 +555,7 @@ int ntyIterFriendsMessage(void *self, void *arg) {
 
 	Client *client = msg->self;
 	void *map = ntyMapInstance();
-	ClientSocket *nSocket = ntyMapSearch(map, client->devId);
+	ClientSocket *nSocket = (ClientSocket *)ntyMapSearch(map, client->devId);
 	if (nSocket == NULL)  return  NTY_RESULT_NOEXIST;
 
 	return ntyProxyBuffer(nSocket, msg->buffer, msg->length);
@@ -580,7 +580,7 @@ int ntySendDataResult(C_DEVID fromId, U8 *json, int length, U16 status) {
 	bLength = NTY_PROTO_DATA_RESULT_JSON_CONTENT_IDX + length + sizeof(U32);
 
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, fromId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, fromId);
 	return ntySendBuffer(client, buffer, bLength);
 	
 }
@@ -603,7 +603,7 @@ int ntySendMonitorSleepDataResult(C_DEVID fromId, U8 *json, int length, U16 stat
 	bLength = NTY_PROTO_DATA_RESULT_JSON_CONTENT_IDX + length + sizeof(U32);
 
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, fromId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, fromId);
 	return ntySendBuffer(client, buffer, bLength);
 	
 }
@@ -630,20 +630,27 @@ int ntySendUserDataAck(C_DEVID fromId, U8 *json, int length) {
 	bLength = NTY_PROTO_USERDATA_PACKET_ACK_JSON_CONTENT_IDX + length + sizeof(U32);
 
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, fromId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, fromId);
 	
 	return ntySendBuffer(client, buffer, bLength);
 	
 }
 
 //send to ios,do not judge the deviceType
-int ntySendPushNotifyIos(C_DEVID selfId, C_DEVID gId, U8 *msg, U32 type){
+int ntySendPushNotifyIos(C_DEVID selfId, C_DEVID gId, U8 *msg, U32 type){ 
 #if 0
+	#if ENABLE_RBTREE_REPLACE_BPTREE
+	void *map = ntyRBTreeMapInstance();
+	Client *pClient = (ClientSocket *)ntyMapSearch( map, selfId );
+	if( pClient == NULL ){
+		return NTY_RESULT_NOEXIST;
+	}
+	#else
 		void *heap = ntyBHeapInstance();
 		NRecord *record = ntyBHeapSelect(heap, selfId);
 		if (record == NULL) return NTY_RESULT_NOEXIST;
 		Client *pClient = (Client *)record->value;
-	
+	#endif
 		if (pClient->deviceType == NTY_PROTO_CLIENT_IOS) {
 			if (pClient->token != NULL) {
 				ntylog("ntySendPushNotify --> selfId:%lld  token:%s\n", selfId, pClient->token);
@@ -691,11 +698,19 @@ int ntySendPushNotifyIos(C_DEVID selfId, C_DEVID gId, U8 *msg, U32 type){
 
 int ntySendPushNotify(C_DEVID selfId, C_DEVID gId, U8 *msg, U32 type) {
 #if 0
+	#if ENABLE_RBTREE_REPLACE_BPTREE
+	void *map = ntyRBTreeMapInstance();
+	Client *pClient = (ClientSocket *)ntyMapSearch( map, selfId );
+	if( pClient == NULL ){
+		return NTY_RESULT_NOEXIST;
+	}
+	#else
 	void *heap = ntyBHeapInstance();
 	NRecord *record = ntyBHeapSelect(heap, selfId);
 	if (record == NULL) return NTY_RESULT_NOEXIST;
 	Client *pClient = (Client *)record->value;
-
+	#endif
+	
 	if (pClient->deviceType == NTY_PROTO_CLIENT_IOS) {
 		if (pClient->token != NULL) {
 			ntylog("ntySendPushNotify --> selfId:%lld  token:%s\n", selfId, pClient->token);
@@ -712,10 +727,20 @@ int ntySendPushNotify(C_DEVID selfId, C_DEVID gId, U8 *msg, U32 type) {
 	
 	return NTY_RESULT_FAILED;//NTY_RESULT_FAILED
 #else
+	#if ENABLE_RBTREE_REPLACE_BPTREE
+	void *map = ntyRBTreeMapInstance();
+	Client *pClient = (Client *)ntyMapSearch( map, selfId );
+	if( pClient == NULL ){
+		ntylog( "ntySendPushNotify rbtree not exit:%lld\n",selfId );
+		return NTY_RESULT_NOEXIST;
+	}
+	#else
 	void *heap = ntyBHeapInstance();
 	NRecord *record = ntyBHeapSelect(heap, selfId);
 	if (record == NULL) return NTY_RESULT_NOEXIST;
 	Client *pClient = (Client *)record->value;
+	#endif
+	
 	if ( pClient->deviceType != NTY_PROTO_CLIENT_IOS && pClient->deviceType != NTY_PROTO_CLIENT_IOS_PUBLISH ) {	
 		return NTY_RESULT_FAILED;
 	}
@@ -783,7 +808,7 @@ int ntyClassifyCategoryPushNotify(C_DEVID toId, C_DEVID gId, U8 *json, int lengt
 int ntySendCommonBroadCastItem(C_DEVID selfId, C_DEVID toId, C_DEVID gId, U8 *json, int length, U32 msgId) {
 	U8 buffer[NTY_DATA_PACKET_LENGTH] = {0};
 	void *map = ntyMapInstance();
-	ClientSocket *pClient = ntyMapSearch(map, toId);
+	ClientSocket *pClient = (ClientSocket *)ntyMapSearch(map, toId);
 
 #if 0
 	if (pClient == NULL) {
@@ -833,7 +858,7 @@ int ntySendCommonBroadCastIter(void *self, void *arg) {
 	if (toId == selfId) return NTY_RESULT_SUCCESS;
 #if 0
 	void *map = ntyMapInstance();
-	ClientSocket *pClient = ntyMapSearch(map, toId);
+	ClientSocket *pClient = (ClientSocket *)ntyMapSearch(map, toId);
 
 	buffer[NTY_PROTO_VERSION_IDX] = NTY_PROTO_VERSION;
 	buffer[NTY_PROTO_DEVTYPE_IDX] = NTY_PROTO_CLIENT_DEFAULT;
@@ -860,6 +885,54 @@ int ntySendCommonBroadCastIter(void *self, void *arg) {
 int ntySendCommonBroadCastResult(C_DEVID selfId, C_DEVID gId, U8 *json, int length, int index) {
 
 #if BHEAP_VECTOR_ENABLE
+  #if ENABLE_RBTREE_REPLACE_BPTREE
+	void *map = ntyRBTreeMapInstance();
+	Client *pClient = (Client *)ntyMapSearch( map, gId );
+	if ( pClient == NULL ) {
+		ntylog("ntySendCommonBroadCastResult rbtree not exit:%lld\n",gId);
+		void *group = ntyVectorCreator();
+		if ( group == NULL ){ 
+			ntylog(" ntySendCommonBroadCastResult vector==NULL\n");
+			return NTY_RESULT_FAILED;
+		}
+		if(-1 == ntyQueryAppIDListSelectHandle(gId, group)) {
+			ntylog(" ntySendCommonBroadCastResult ntyQueryWatchIDListSelectHandle Failed \n");
+		}	
+		InterMsg *msg = (InterMsg*)malloc(sizeof(InterMsg));
+		if ( msg == NULL ){ 
+			ntylog("ntySendCommonBroadCastResult msg==NULL\n");
+			return NTY_RESULT_FAILED;	
+		}
+		msg->buffer = json;
+		msg->length = length;
+		msg->group = &gId;
+		msg->self = &selfId;
+		msg->arg = index;
+
+		ntyVectorIterator(group, ntySendCommonBroadCastIter, msg);
+		ntyFree(msg);
+		ntyVectorDestory(group);
+	} else {
+		ntylog("ntySendCommonBroadCastResult rbtree exit:%lld\n",gId);	
+		InterMsg *msg = (InterMsg*)malloc(sizeof(InterMsg));
+		if ( msg == NULL ){
+			ntylog(" ntySendCommonBroadCastResult msg==NULL \n");
+			return NTY_RESULT_FAILED;
+		}
+		msg->buffer = json;
+		msg->length = length;
+		msg->group = &gId;
+		msg->self = &selfId;
+		msg->arg = index;		
+		if ( pClient->friends == NULL ) {
+			ntyFree( msg );
+			ntylog(" ntySendCommonBroadCastResult pClient->friends==NULL\n");
+			return NTY_RESULT_ERROR;
+		}
+		ntyVectorIterator( pClient->friends, ntySendCommonBroadCastIter, msg );
+		ntyFree( msg );
+	}
+  #else
 	void *heap = ntyBHeapInstance();
 	NRecord *record = ntyBHeapSelect(heap, gId);
 	if ( record == NULL ) {
@@ -914,7 +987,8 @@ int ntySendCommonBroadCastResult(C_DEVID selfId, C_DEVID gId, U8 *json, int leng
 		ntyVectorIterator( pClient->friends, ntySendCommonBroadCastIter, msg );
 		ntyFree( msg );
 	}
-
+	#endif
+	
 	return NTY_RESULT_SUCCESS;
 #else
 
@@ -1000,7 +1074,7 @@ int ntySendCommonReq(C_DEVID fromId, C_DEVID toId, U8 *json, int length, int msg
 	ntylog("ntySendCommonReq buffer:%s\n", buffer+NTY_PROTO_COMMON_REQ_JSON_CONTENT_IDX);
 
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, toId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, toId);
 
 	return ntySendBuffer(client, buffer, bLength);
 
@@ -1009,14 +1083,14 @@ int ntySendCommonReq(C_DEVID fromId, C_DEVID toId, U8 *json, int length, int msg
 
 int ntySendDataRoute(C_DEVID toId, U8 *buffer, int length) {
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, toId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, toId);
 
 	return ntySendBuffer(client, buffer, length);
 }
 
 int ntySendDataMessagePush(C_DEVID toId, U8 *buffer, int length){
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, toId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, toId);
 
 	return ntySendBuffer(client, buffer, length);
 
@@ -1037,7 +1111,7 @@ int ntySendVoiceBroadCastItem(C_DEVID fromId, C_DEVID toId, C_DEVID gId, U8 *jso
 	
 	length = length + NTY_PROTO_VOICE_BROADCAST_JSON_CONTENT_IDX + sizeof(U32);
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, toId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, toId);
 #if 0
 	if (client == NULL) {
 		return ntySendPushNotify(toId, NULL);
@@ -1085,7 +1159,7 @@ int ntySendVoiceBroadCast(C_DEVID fromId, C_DEVID toId, C_DEVID gId, U8 *json, i
 	
 	length = length + NTY_PROTO_VOICE_BROADCAST_JSON_CONTENT_IDX + sizeof(U32);
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, toId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, toId);
 
 	return ntySendBuffer(client, buffer, length);
 }
@@ -1114,7 +1188,7 @@ int ntySendVoiceBroadCastIter(void *self, void *arg) {
 	}
 #if 0
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, toId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, toId);
 
 	buffer[NTY_PROTO_VERSION_IDX] = NTY_PROTO_VERSION;
 	buffer[NTY_PROTO_DEVTYPE_IDX] = NTY_PROTO_CLIENT_DEFAULT;
@@ -1143,9 +1217,77 @@ int ntySendVoiceBroadCastIter(void *self, void *arg) {
 int ntySendVoiceBroadCastResult(C_DEVID fromId, C_DEVID gId, U8 *json, int length, int index) {
 
 #if BHEAP_VECTOR_ENABLE
+
+  #if ENABLE_RBTREE_REPLACE_BPTREE
+	void *map = ntyRBTreeMapInstance();
+	Client *pClient = (Client *)ntyMapSearch( map, gId );
+	if ( pClient == NULL ) {
+		ntylog("ntySendVoiceBroadCastResult rbtree not exit:%lld\n",gId);
+		void *group = ntyVectorCreator();
+		if (group == NULL) return NTY_RESULT_FAILED;
+		if( -1 == ntyQueryAppIDListSelectHandle(gId, group) ) {	//find all the appids binded gId  
+			ntylog("ntySendVoiceBroadCastResult ntyQueryWatchIDListSelectHandle Failed \n");
+			return NTY_RESULT_FAILED;
+		}			
+		InterMsg *msg = (InterMsg*)malloc(sizeof(InterMsg));
+		if (msg == NULL) return NTY_RESULT_FAILED;
+		
+		msg->buffer = json;
+		msg->length = length;
+		msg->group = &gId;
+		msg->self = &fromId;
+		msg->arg = index;
+		ntyVectorIterator(group, ntySendVoiceBroadCastIter, msg);  //broadcast to all the appids binded the deviceid
+		ntyFree(msg);
+		ntyVectorDestory(group);
+
+		//when fromId is app,then send to the device.	
+		Client *pClientPtr = (Client *)ntyMapSearch( map, fromId );
+		if ( pClientPtr == NULL ){ 
+			ntylog("ntySendVoiceBroadCastResult fromId not exit:%lld\n",fromId);
+			return NTY_RESULT_FAILED;
+		}
+		if (pClientPtr->deviceType == NTY_PROTO_CLIENT_ANDROID 
+			|| pClientPtr->deviceType == NTY_PROTO_CLIENT_IOS
+			|| pClientPtr->deviceType == NTY_PROTO_CLIENT_IOS_PUBLISH) {	
+			ntylog( "ntySendVoiceBroadCastResult fromId:%lld is AppId,send to the device.\n",fromId );
+			ntySendVoiceBroadCast(fromId, gId, gId, json, length, index);
+		}	
+
+	}else {
+		ntylog("ntySendVoiceBroadCastResult rbtree exit:%lld\n",gId);
+		InterMsg *msg = (InterMsg*)malloc(sizeof(InterMsg));
+		msg->buffer = json;
+		msg->length = length;
+		msg->group = &gId;
+		msg->self = &fromId;
+		msg->arg = index;
+		if ( pClient->friends == NULL ) {
+			ntylog( "ntySendVoiceBroadCastResult pClient->friends==NULL\n" );
+			ntyFree(msg);
+			return NTY_RESULT_ERROR;
+		}
+		ntyVectorIterator(pClient->friends, ntySendVoiceBroadCastIter, msg);	//broadcast to all the appids binded the deviceid
+		ntyFree(msg);
+
+		//when fromId is app,then send to the device.	
+		Client *pClientPtr = (Client *)ntyMapSearch( map, fromId );
+		if ( pClientPtr == NULL ){ 
+			ntylog("ntySendVoiceBroadCastResult fromId not exit:%lld\n",fromId);
+			return NTY_RESULT_FAILED;
+		}
+	
+		if (pClientPtr->deviceType == NTY_PROTO_CLIENT_ANDROID 
+			|| pClientPtr->deviceType == NTY_PROTO_CLIENT_IOS
+			|| pClientPtr->deviceType == NTY_PROTO_CLIENT_IOS_PUBLISH) {
+			ntylog( "ntySendVoiceBroadCastResult fromId:%lld is AppId,send to the device.\n",fromId );
+			ntySendVoiceBroadCast(fromId, gId, gId, json, length, index);
+		}
+	}
+
+  #else
 	void *heap = ntyBHeapInstance();
 	NRecord *record = ntyBHeapSelect(heap, gId);
-	
 	if ( record == NULL	) {
 		void *group = ntyVectorCreator();
 		if (group == NULL) return NTY_RESULT_FAILED;
@@ -1226,14 +1368,24 @@ int ntySendVoiceBroadCastResult(C_DEVID fromId, C_DEVID gId, U8 *json, int lengt
 			ntySendVoiceBroadCast(fromId, gId, gId, json, length, index);
 		}
 	}
+	#endif
 #else
 	//get fromId group all
 	//fromId type
+  #if ENABLE_RBTREE_REPLACE_BPTREE
+	void *map = ntyRBTreeMapInstance();
+	Client *pClient = (ClientSocket *)ntyMapSearch( map, fromId );
+	if ( pClient == NULL ){ 
+		ntylog("ntySendVoiceBroadCastResult fromId not exit:%lld\n",fromId);
+		return NTY_RESULT_FAILED;
+	}	
+  #else
 	void *heap = ntyBHeapInstance();
 	NRecord *record = ntyBHeapSelect(heap, fromId);
 	Client *pClient = (Client*)record->value;
 	if (pClient == NULL) return NTY_RESULT_FAILED;
-
+  #endif
+	
 	void *group = NULL;
 	if (pClient->deviceType == NTY_PROTO_CLIENT_ANDROID 
 		|| pClient->deviceType == NTY_PROTO_CLIENT_IOS
@@ -1294,7 +1446,7 @@ int ntySendLocationBroadCastIter(void *self, void *arg) {
 	if (toId == selfId) return 0;
 
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, toId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, toId);
 
 	buffer[NTY_PROTO_VERSION_IDX] = NTY_PROTO_VERSION;
 	buffer[NTY_PROTO_DEVTYPE_IDX] = NTY_PROTO_CLIENT_DEFAULT;
@@ -1312,12 +1464,21 @@ int ntySendLocationBroadCastIter(void *self, void *arg) {
 
 
 int ntySendLocationBroadCastResult(C_DEVID fromId, C_DEVID gId, U8 *json, int length) {
+  #if ENABLE_RBTREE_REPLACE_BPTREE
+	void *map = ntyRBTreeMapInstance();
+	Client *pClient = (Client *)ntyMapSearch( map, gId );
+	if ( pClient == NULL ){ 
+		ntylog( "ntySendLocationBroadCastResult rbtree not exit:%lld\n", gId);
+		return NTY_RESULT_NOEXIST;
+	}
+  #else
 	void *heap = ntyBHeapInstance();
 	NRecord *record = ntyBHeapSelect(heap, gId);
 	if (record == NULL) return NTY_RESULT_NOEXIST;
 	
 	Client *pClient = (Client*)record->value;
 	if (pClient == NULL) return NTY_RESULT_NOEXIST;
+  #endif
 	
 	InterMsg *msg = (InterMsg*)malloc(sizeof(InterMsg));
 	if (msg == NULL) {
@@ -1333,13 +1494,13 @@ int ntySendLocationBroadCastResult(C_DEVID fromId, C_DEVID gId, U8 *json, int le
 		free(msg);
 		return NTY_RESULT_ERROR;
 	}
-#if 1
-	ntylog("ntySendLocationBroadCastResult --> friend addr:%llx\n", (C_DEVID)pClient->friends);
+  #if 1
+	//ntylog("ntySendLocationBroadCastResult --> friend addr:%llx\n", (C_DEVID)pClient->friends);
 	ntylog(" ntySendLocationBroadCastResult --> fromId:%lld, devId:%lld \n", fromId, pClient->devId);
 	ntyVectorIterator(pClient->friends, ntySendLocationBroadCastIter, msg);
-#else
+  #else
 	ntyVectorIter(pClient->friends, ntySendLocationBroadCastIter, msg);
-#endif
+  #endif
 	free(msg);
 	return NTY_RESULT_SUCCESS;
 }
@@ -1350,7 +1511,7 @@ int ntySendLoginAckResult(C_DEVID fromId, U8 *json, int length, U16 status) {
 	U16 bLength = (U16)length;
 	U8 buffer[NTY_DATA_PACKET_LENGTH] = {0};
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, fromId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, fromId);
 
 
 	buffer[NTY_PROTO_VERSION_IDX] = NTY_PROTO_VERSION;
@@ -1384,7 +1545,7 @@ int ntySendOfflineMsgReqResult(C_DEVID fromId, U8 *json, int length) {
 	bLength = bLength + NTY_PROTO_OFFLINE_MSG_REQ_JSON_CONTENT_IDX + sizeof(U32);
 
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, fromId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, fromId);
 	
 	return ntySendBuffer(client, buffer, bLength);
 }
@@ -1406,7 +1567,7 @@ int ntySendOfflineMsgAckResult(C_DEVID fromId, U8 *json, int length, U16 status)
 	bLength = bLength + NTY_PROTO_OFFLINE_MSG_ACK_JSON_CONTENT_IDX + sizeof(U32);
 
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, fromId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, fromId);
 	
 	return ntySendBuffer(client, buffer, bLength);
 }
@@ -1428,7 +1589,7 @@ int ntySendLocationPushResult(C_DEVID fromId, U8 *json, int length) {
 	bLength = bLength + NTY_PROTO_LOCATION_PUSH_JSON_CONTENT_IDX + sizeof(U32);
 
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, fromId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, fromId);
 	
 	return ntySendBuffer(client, buffer, bLength);
 }
@@ -1449,7 +1610,7 @@ int ntySendWeatherPushResult(C_DEVID fromId, U8 *json, int length) {
 	bLength = bLength + NTY_PROTO_WEATHER_PUSH_JSON_CONTENT_IDX + sizeof(U32);
 
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, fromId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, fromId);
 	
 	return ntySendBuffer(client, buffer, bLength);
 }
@@ -1468,7 +1629,7 @@ int ntySendHeartBeatResult(C_DEVID fromId) {
 	length = NTY_PROTO_HEARTBEAT_ACK_CRC_IDX + sizeof(U32);
 
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, fromId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, fromId);
 	
 	return ntySendBuffer(client, buffer, length);
 }
@@ -1493,7 +1654,7 @@ int ntySendICCIDAckResult(C_DEVID fromId, U8 *json, int length, U16 status) {
 	bLength = bLength + NTY_PROTO_ICCID_ACK_JSON_CONTENT_IDX + sizeof(U32);
 
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, fromId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, fromId);
 	
 	return ntySendBuffer(client, buffer, bLength);
 }
@@ -1533,7 +1694,7 @@ int ntySendRecodeJsonPacket(C_DEVID fromId, C_DEVID toId, U8 *json, int length) 
 	ntylog("ntySendRecodeJsonPacket buffer:%s\n", buffer+NTY_PROTO_COMMON_REQ_JSON_CONTENT_IDX);
 
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, toId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, toId);
 #if 0
 	return ntySendBuffer(client, buffer, bLength);
 #else
@@ -1605,7 +1766,7 @@ int ntySendRecodeJsonPacketVersionB(C_DEVID fromId, C_DEVID toId, U8 *json, int 
 	ntylog("ntySendRecodeJsonPacket buffer:%s\n", buffer+NTY_PROTO_COMMON_REQ_JSON_CONTENT_IDX);
 
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, toId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, toId);
 #if 0
 	return ntySendBuffer(client, buffer, bLength);
 #else
@@ -1677,7 +1838,7 @@ int ntySendBigPacket(U8 *buffer, int length, C_DEVID fromId, C_DEVID gId, C_DEVI
 	int ret = -1;
 	ntylog("ntySendBigPacket destId:%d, index:%d, length:%d", NTY_PROTO_VOICE_DATA_REQ_GROUP_IDX, index, length);
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, toId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, toId);
 
 	for ( i = 0;i < Count;i ++ ) {
 		pkt = buffer+(i*NTY_VOICEREQ_PACKET_LENGTH);
@@ -1732,15 +1893,20 @@ int ntySendBinBufferBroadCastResult(U8 *u8Buffer, int length, C_DEVID fromId, C_
 #if 0
 	ntySendBigPacket(u8Buffer, length, gId, index);
 #else
-
+  #if ENABLE_RBTREE_REPLACE_BPTREE
+	void *map = ntyRBTreeMapInstance();
+	Client *pClient = (Client *)ntyMapSearch( map, gId );	
+	if ( pClient == NULL){
+		ntylog( "ntySendBinBufferBroadCastResult rbtree not exit:%lld\n",gId );
+		return NTY_RESULT_NOEXIST;
+	}
+  #else
 	void *heap = ntyBHeapInstance();
 	NRecord *record = ntyBHeapSelect(heap, gId);
 	if (record == NULL) return NTY_RESULT_NOEXIST;
-	
 	Client *pClient = (Client*)record->value;
 	if (pClient == NULL) return NTY_RESULT_NOEXIST;
-
-
+  #endif
 	InterMsg *msg = (InterMsg*)malloc(sizeof(InterMsg));
 	msg->buffer = u8Buffer;
 	msg->length = length;
@@ -1748,10 +1914,8 @@ int ntySendBinBufferBroadCastResult(U8 *u8Buffer, int length, C_DEVID fromId, C_
 	msg->self = &fromId;
 	msg->arg = index;
 #endif
-
 	ntyVectorIterator(pClient->friends, ntySendCommonBroadCastIter, msg);
-
-	free(msg);
+	ntyFree(msg);
 
 	return NTY_RESULT_SUCCESS;
 }
@@ -1786,7 +1950,7 @@ int ntySendBindConfirmPushResult(C_DEVID proposerId, C_DEVID devId, C_DEVID admi
 	bLength = bLength + NTY_PROTO_BIND_CONFIRM_PUSH_JSON_CONTENT_IDX + sizeof(U32);
 
 	void *map = ntyMapInstance();
-	ClientSocket *client = ntyMapSearch(map, adminId);
+	ClientSocket *client = (ClientSocket *)ntyMapSearch(map, adminId);
 	
 #if 0 //
 	if (client == NULL) {

@@ -161,20 +161,26 @@ static int ntyHeartBeatDetectItem(void *client, C_DEVID clientId) {
 	
 	ntylog("ntyHeartBeatDetectItem --> clientId:%lld\n", clientId);
 	
-	BPTreeHeap *heap = ntyBHeapInstance();
-	NRecord *record = ntyBHeapSelect(heap, clientId);
-	
-	
-	if (record == NULL) {
-		ntylog(" ntyHashMapTraversal --> %lld is not exist\n", clientId);
-		return NTY_RESULT_NOEXIST;
-	}
-
-	Client* pClient = (Client*)record->value;
-	if (pClient == NULL) {
-		ntylog(" ntyHashMapTraversal --> pClient == NULL\n");
-		return NTY_RESULT_NOEXIST;
-	}
+	#if ENABLE_RBTREE_REPLACE_BPTREE
+		void *map = ntyRBTreeMapInstance();
+		Client *pClient = (Client *)ntyMapSearch( map, clientId );
+		if (pClient == NULL) {
+			ntylog("ntyHeartBeatDetectItem rbtree not exit:%lld\n",clientId);
+			return NTY_RESULT_NOEXIST;
+		}
+	#else
+		BPTreeHeap *heap = ntyBHeapInstance();
+		NRecord *record = ntyBHeapSelect(heap, clientId);
+		if (record == NULL) {
+			ntylog(" ntyHashMapTraversal --> %lld is not exist\n", clientId);
+			return NTY_RESULT_NOEXIST;
+		}
+		Client* pClient = (Client*)record->value;
+		if (pClient == NULL) {
+			ntylog(" ntyHashMapTraversal --> pClient == NULL\n");
+			return NTY_RESULT_NOEXIST;
+		}
+	#endif
 
 	if (pClient->stamp == 0) return NTY_RESULT_FAILED;
 	
@@ -185,13 +191,13 @@ static int ntyHeartBeatDetectItem(void *client, C_DEVID clientId) {
 	TIMESTAMP dur_time = stamp - pClient->stamp;
 
 	if (dur_time > NATTY_HEARTBEAT_THRESHOLD && pClient->deviceType == NTY_PROTO_CLIENT_WATCH) { //timeout
-		ntylog("ntyHeartBeatDetectItem timeout --> %lld, prepare to cleanup client \n", clientId);
+		ntylog("ntyHeartBeatDetectItem device timeout:%lld, prepare to cleanup client\n", clientId);
 		ntyClientCleanup(client);
 	} else if ( dur_time > (NATTY_HEARTBEAT_THRESHOLD * 5)  && 
 		(pClient->deviceType == NTY_PROTO_CLIENT_ANDROID || pClient->deviceType == NTY_PROTO_CLIENT_IOS 
 		|| pClient->deviceType == NTY_PROTO_CLIENT_IOS_PUBLISH || pClient->deviceType == NTY_PROTO_CLIENT_IOS_APP_B
 		|| pClient->deviceType == NTY_PROTO_CLIENT_IOS_APP_B_PUBLISH)) { //timeout
-		ntylog("ntyHeartBeatDetectItem App Client timeout --> %lld, prepare to cleanup client \n", clientId);
+		ntylog("ntyHeartBeatDetectItem App Client timeout:%lld, prepare to cleanup client\n", clientId);
 		ntyClientCleanup(client);
 	}else{}
 

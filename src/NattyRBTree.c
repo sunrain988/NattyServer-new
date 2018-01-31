@@ -834,6 +834,19 @@ void* ntyMapInstance(void) {
 	return pMap;
 }
 
+static void *pRBTreeMap = NULL;
+void* ntyRBTreeMapInstance(void) {
+	if (pRBTreeMap == NULL) {
+		int arg = 1;
+		void *pTree = New(pNtyRBTreeOpera, arg);
+		if ((unsigned long)NULL != cmpxchg((void*)(&pRBTreeMap), (unsigned long)NULL, (unsigned long)pTree, WORD_WIDTH)) {
+			Delete(pTree);
+		} 
+	}
+	return pRBTreeMap;
+}
+
+
 int ntyMapInsert(void *self, C_DEVID key, void *value) {
 	RBTreeOpera **pRBTreeOpera = self;
 

@@ -102,6 +102,13 @@ int ntyOfflineClientHeap(C_DEVID clientId);
 
 int ntyOnlineClientHeap(C_DEVID clientId);
 
+//add 2017-12-28
+Client* ntyAddClientRBTree(const void * obj, int *result);
+int ntyDelClientRBTree(C_DEVID clientId);
+int ntyOfflineClientRBTree(C_DEVID clientId);
+int ntyOnlineClientRBTree(C_DEVID clientId);
+int ntyLogoutOfflineClientRBTree(C_DEVID clientId);
+
 
 
 

@@ -1206,6 +1206,20 @@ int ntyJsonRestoreAction( ActionParam *pActionParam ){
 	C_DEVID toId = pActionParam->toId;  //deviceId
 	ntylog( " ********ntyJsonRestoreAction --> fromId:%lld, toId:%lld, json:%s\n", fromId, toId, pActionParam->jsonstring );
 
+#if ENABLE_RBTREE_REPLACE_BPTREE
+	void *map = ntyRBTreeMapInstance();
+	Client *aclient = (Client *)ntyMapSearch( map, toId );
+	if( aclient != NULL ){
+		ntyVectorIterator( aclient->friends, ntyAppIdToDeviceIdDeleteCb, &toId );				
+		ntylog( "*********ntyJsonRestoreAction destroy vector of client->friends before\n" );
+		aclient->friends = ntyVectorDestory( aclient->friends );
+		ntylog("*********ntyJsonRestoreAction destroy vector of client->friends after\n" ); 
+	#if 1 //recreator friends vector
+		aclient->friends = ntyVectorCreator();
+	#endif 
+	}
+
+#else
 	//delete b+tree, deviceId to the list of AppId
 	void *heap = ntyBHeapInstance();
 	NRecord *record = ntyBHeapSelect( heap, toId );
@@ -1216,11 +1230,12 @@ int ntyJsonRestoreAction( ActionParam *pActionParam ){
 			ntylog( "*********ntyJsonRestoreAction destroy vector of client->friends before\n" );
 			aclient->friends = ntyVectorDestory( aclient->friends );
 			ntylog("*********ntyJsonRestoreAction destroy vector of client->friends after\n" );	
-#if 1 //recreator friends vector
+		#if 1 //recreator friends vector
 			aclient->friends = ntyVectorCreator();
-#endif 
+		#endif 
 		}
 	}
+#endif
 	
 	nRet = ntyExecuteRestoreHandle( fromId, toId );
 	if ( nRet == -1 ){
@@ -1245,6 +1260,15 @@ int ntyAppIdToDeviceIdDeleteCb( void *self, void *arg ){
 	C_DEVID appId = 0;
 	memcpy( &appId, self, sizeof(C_DEVID) );
 	
+#if ENABLE_RBTREE_REPLACE_BPTREE
+	void *map = ntyRBTreeMapInstance();
+	Client *aclient = (Client *)ntyMapSearch( map, appId );
+	if( aclient != NULL ){
+		//arg:deviceId
+		ntylog( "***********ntyAppIdToDeviceIdDelete before appId:%lld,deviceId:%lld\n",appId, atoll(arg) );
+		ntyVectorDelete( aclient->friends, arg );
+	}
+#else
 	void *heap = ntyBHeapInstance();
 	NRecord *record = ntyBHeapSelect( heap, appId );
 	if ( record != NULL ) {
@@ -1255,6 +1279,7 @@ int ntyAppIdToDeviceIdDeleteCb( void *self, void *arg ){
 			ntyVectorDelete( aclient->friends, arg );
 		}
 	}
+#endif
 	return 0;
 }
 
@@ -1627,7 +1652,7 @@ void ntyJsonAddContactsAction(ActionParam *pActionParam) {
 		}
 		free(jsondeviceresult);
 		free(pDeviceAddContactsAck);
-	}
+	}else{}
 
 exit:
 	free(pAddContactsReq);
